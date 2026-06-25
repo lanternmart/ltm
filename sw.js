@@ -1,7 +1,7 @@
 // Lantern Mart — Service Worker
 // Auto-update: SW activates immediately, reloads clients on new version.
 // CACHE_NAME must match version.json + APP_VER in index.html (3 places per release).
-var CACHE_NAME = 'lantern-v1.0.0';
+var CACHE_NAME = 'lantern-v1.0.2';
 var APP_SHELL = [
   './index.html','./manifest.json',
   './js/db.js','./js/supabase.js','./js/sync.js','./js/app.js',

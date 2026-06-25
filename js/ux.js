@@ -4,7 +4,7 @@
 // ════════════════════════════════════════════════════════════
 // VERSION AUTO-UPDATE  (must match version.json + sw.js CACHE_NAME)
 // ════════════════════════════════════════════════════════════
-var APP_VER = '1.0.0';
+var APP_VER = '1.0.2';
 var SW_REG = null;
 var UPDATE_PENDING = false;
 
@@ -38,11 +38,19 @@ function showUpdateBanner(newVer) {
 }
 
 function applyUpdate() {
+  var done = function () { window.location.reload(); };
   if (SW_REG && SW_REG.waiting) SW_REG.waiting.postMessage({ type: 'SKIP_WAITING' });
   if (navigator.serviceWorker && navigator.serviceWorker.controller) {
     navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
   }
-  setTimeout(function () { window.location.reload(); }, 400);
+  // Clear all caches so the reload pulls fresh files (prevents stale-version loops)
+  if (window.caches && caches.keys) {
+    caches.keys().then(function (keys) {
+      return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+    }).then(done).catch(done);
+  } else {
+    setTimeout(done, 400);
+  }
 }
 
 window.addEventListener('load', function () { setTimeout(checkVersion, 2000); });
