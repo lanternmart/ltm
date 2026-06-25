@@ -838,8 +838,10 @@ function saveSettings() {
 }
 
 async function testSheets() {
-  const s = DB.getSettings();
-  if (!s.sheets_url) { alert('⚠️ Enter the Apps Script URL first'); return; }
+  const url = (document.getElementById('sheets-url')?.value || '').trim();
+  if (!url) { alert('⚠️ Enter the Apps Script URL first'); return; }
+  // Auto-save the URL so the test (and the whole app) uses it — no need to hit Save first
+  const s = DB.getSettings(); s.sheets_url = url; DB.saveSettings(s);
   if (typeof ovSpin === 'function') ovSpin('Testing connection...');
   try {
     const r = await SHEETS.ping();
