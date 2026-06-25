@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Lantern Mart">
+<meta name="theme-color" content="#eb2928">
+<title>Lantern Mart</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#fff;--bg2:#f5f5f4;--bg3:#eeede9;
+  --text:#1a1a18;--text2:#6b6b68;--text3:#9a9a97;
+  --border:#e5e4e0;--border2:#d0cfc9;
+  --blue:#185FA5;--blue-bg:#E6F1FB;--blue-t:#0C447C;
+  --green:#3B6D11;--green-bg:#EAF3DE;--green-t:#27500A;
+  --amber:#854F0B;--amber-bg:#FAEEDA;--amber-t:#633806;
+  --red:#A32D2D;--red-bg:#FCEBEB;--red-t:#791F1F;
+  --orange:#993C1D;--orange-bg:#FAECE7;--orange-t:#712B13;
+  --r:8px;--rl:12px;
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#1a1a18;display:flex;justify-content:center;align-items:center}
+
+/* ── DEVICE WRAPPER (desktop preview) ── */
+.device-wrap{width:100%;max-width:390px;height:100%;max-height:844px;background:var(--bg);border-radius:0;overflow:hidden;display:flex;flex-direction:column;position:relative}
+@media(min-width:500px){.device-wrap{border-radius:44px;box-shadow:0 24px 80px rgba(0,0,0,.5)}}
+
+/* ── STATUS BAR ── */
+.status-bar{background:var(--bg);padding:14px 24px 8px;display:flex;justify-content:space-between;flex-shrink:0;z-index:10}
+.status-time{font-size:15px;font-weight:600}
+
+/* ── UPDATE BANNER ── */
+#update-banner{display:none;background:var(--blue);color:#fff;padding:10px 16px;font-size:13px;align-items:center;justify-content:space-between;flex-shrink:0;z-index:100}
+#update-banner button{background:rgba(255,255,255,.2);border:none;color:#fff;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px}
+
+/* LOADING OVERLAY (ring %) */
+#load-overlay{position:absolute;inset:0;background:rgba(255,255,255,.92);z-index:1000;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+#load-overlay.on{display:flex}
+.ospin{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+#ot{font-size:13px;color:var(--text2)}
+
+/* PULL-TO-REFRESH */
+#ptr-indicator{position:absolute;top:50px;left:50%;transform:translateX(-50%) translateY(-10px);z-index:90;display:flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:50%;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.15);opacity:0;pointer-events:none;transition:opacity .15s,transform .15s}
+#ptr-indicator .ptr-pct{font-size:12px;font-weight:800;color:var(--blue)}
+#ptr-indicator.spinning .ptr-pct{display:none}
+#ptr-indicator .ptr-spin{display:none;width:18px;height:18px;border:2.5px solid var(--border);border-top-color:var(--blue);border-radius:50%}
+#ptr-indicator.spinning .ptr-spin{display:block;animation:sp .6s linear infinite}
+
+/* SCANNER FULLSCREEN */
+.scan-fullscreen{display:none;position:absolute;inset:0;background:#000;z-index:1100;flex-direction:column}
+.scan-fullscreen.on{display:flex}
+.scan-fs-video-wrap{flex:1;position:relative;overflow:hidden}
+.scan-fs-video-wrap video{width:100%;height:100%;object-fit:cover;background:#000}
+.scan-fs-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.scan-fs-frame{width:80%;max-width:300px;height:150px;position:relative;border:2px solid rgba(255,255,255,.5);border-radius:12px}
+.scan-line{position:absolute;left:6%;right:6%;height:2px;background:#378ADD;box-shadow:0 0 10px #378ADD;animation:scanmove 1.8s ease-in-out infinite}
+@keyframes scanmove{0%,100%{top:8%}50%{top:90%}}
+.scan-fs-top{position:absolute;top:0;left:0;right:0;padding:16px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(180deg,rgba(0,0,0,.6),transparent)}
+.scan-fs-title{color:#fff;font-size:15px;font-weight:600}
+.scan-fs-close{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.2);color:#fff;border:none;font-size:17px;cursor:pointer}
+.scan-fs-bottom{position:absolute;bottom:0;left:0;right:0;padding:18px 16px;background:linear-gradient(0deg,rgba(0,0,0,.7),transparent)}
+.scan-fs-hint{color:#fff;font-size:13px;text-align:center;opacity:.9;margin-bottom:12px}
+.scan-fs-capture{width:100%;padding:13px;border-radius:12px;border:none;background:var(--blue);color:#fff;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px}
+.scan-fs-manual{display:flex;gap:8px}
+.scan-fs-manual input{flex:1;padding:11px 13px;border-radius:10px;border:none;font-size:15px;font-family:monospace;background:rgba(255,255,255,.95)}
+.scan-fs-manual button{padding:11px 16px;border-radius:10px;border:none;background:var(--blue);color:#fff;font-weight:600;font-size:14px}
+
+/* ── SCREENS ── */
+#s-login,#s-pin{flex:1;display:none}
+#s-app{flex:1;display:none;flex-direction:column;overflow:hidden;position:relative}
+
+/* ── AUTH ── */
+.auth-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;overflow-y:auto}
+.store-btn{width:100%;max-width:320px;padding:16px;border-radius:var(--rl);border:0.5px solid var(--border2);background:var(--bg);cursor:pointer;display:flex;align-items:center;gap:12px;margin-bottom:10px;transition:background .15s;text-align:left}
+.store-btn:hover,.store-btn:active{background:var(--bg2)}
+.store-icon{width:40px;height:40px;border-radius:var(--r);background:var(--blue-bg);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.pin-box{width:100%;max-width:300px}
+.pin-dots{display:flex;justify-content:center;gap:14px;margin:18px 0 22px}
+.pin-dot{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--border2);transition:all .15s}
+.pin-dot.filled{background:var(--text);border-color:var(--text)}
+.pin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pin-key{height:56px;border-radius:var(--rl);border:0.5px solid var(--border2);background:var(--bg);font-size:22px;font-weight:500;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .1s;width:100%}
+.pin-key:hover,.pin-key:active{background:var(--bg2)}
+
+/* ── DRAWER OVERLAY ── */
+.drawer-overlay{position:absolute;inset:0;background:rgba(0,0,0,0);pointer-events:none;z-index:20;transition:background .25s}
+.drawer-overlay.open{background:rgba(0,0,0,.35);pointer-events:auto}
+
+/* ── DRAWER ── */
+.drawer{position:absolute;left:0;top:0;bottom:0;width:240px;background:var(--bg);border-right:0.5px solid var(--border);z-index:21;transform:translateX(-100%);transition:transform .25s ease;display:flex;flex-direction:column}
+.drawer.open{transform:translateX(0);box-shadow:4px 0 24px rgba(0,0,0,.15)}
+.drawer-header{padding:14px 16px 12px;border-bottom:0.5px solid var(--border);flex-shrink:0}
+.drawer-header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.drawer-logo{font-size:15px;font-weight:700;color:var(--text)}
+.drawer-close{width:28px;height:28px;border-radius:6px;border:0.5px solid var(--border2);background:var(--bg2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text2)}
+.drawer-close:hover{background:var(--bg3)}
+.drawer-store-card{background:var(--bg2);border-radius:var(--r);padding:9px 11px}
+.nav-items{flex:1;overflow-y:auto;padding:6px 0}
+.nav-item{display:flex;align-items:center;gap:10px;padding:11px 16px;cursor:pointer;border:none;background:none;width:100%;text-align:left;transition:background .12s}
+.nav-item:hover,.nav-item:active{background:var(--bg2)}
+.nav-item.active{background:var(--blue-bg)}
+.nav-item.active .nav-lbl{color:var(--blue-t);font-weight:500}
+.nav-icon{font-size:19px;flex-shrink:0;width:22px;text-align:center}
+.nav-lbl{font-size:13px;color:var(--text2);flex:1}
+.nav-badge{font-size:10px;background:var(--red-bg);color:var(--red-t);padding:1px 5px;border-radius:10px}
+.nav-section{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;padding:9px 16px 2px}
+.nav-divider{height:0.5px;background:var(--border);margin:5px 16px}
+
+/* ── MENU BUTTON (floating arrow) ── */
+.menu-btn{position:absolute;left:0;top:50%;transform:translateY(-50%);width:20px;height:48px;background:var(--bg2);border:0.5px solid var(--border2);border-left:none;border-radius:0 8px 8px 0;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text2);z-index:19;box-shadow:2px 0 8px rgba(0,0,0,.08);transition:left .25s ease,background .12s}
+.menu-btn:hover{background:var(--bg3)}
+
+/* ── MAIN ── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.tab-pane{display:none;flex-direction:column;height:100%}
+.tab-pane.active{display:flex}
+.topbar{padding:11px 14px 9px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0;background:var(--bg)}
+.topbar-title{font-size:15px;font-weight:600;flex:1}
+.topbar-sub{font-size:11px;color:var(--text3)}
+.content{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+.content::-webkit-scrollbar{display:none}
+
+/* ── SEARCH BAR ── */
+.search-bar{display:flex;align-items:center;gap:7px;padding:7px 12px;border-bottom:0.5px solid var(--border);background:var(--bg);flex-shrink:0}
+.search-wrap{flex:1;display:flex;align-items:center;gap:7px;background:var(--bg2);border-radius:var(--rl);padding:7px 11px}
+.search-wrap input{flex:1;border:none;background:transparent;font-size:13px;color:var(--text);outline:none;min-width:0}
+.search-wrap input::placeholder{color:var(--text3)}
+.scan-btn{width:32px;height:32px;border-radius:var(--r);background:var(--blue-bg);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+
+/* ── SEGMENTS ── */
+.seg{display:flex;background:var(--bg2);border-radius:var(--r);padding:3px;margin:8px 12px;gap:2px;flex-shrink:0}
+.seg-btn{flex:1;padding:6px 3px;border-radius:6px;border:none;background:transparent;font-size:11px;color:var(--text2);cursor:pointer;transition:all .15s;white-space:nowrap}
+.seg-btn.active{background:var(--bg);color:var(--text);font-weight:500;border:0.5px solid var(--border)}
+.panel{display:none}.panel.active{display:block}
+
+/* ── ROWS ── */
+.sh{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;padding:7px 12px 3px;flex-shrink:0}
+.row{display:flex;align-items:center;gap:9px;padding:9px 12px;border-bottom:0.5px solid var(--border);cursor:pointer;transition:background .12s}
+.row:hover,.row:active{background:var(--bg2)}
+.rn{font-size:13px;font-weight:500;color:var(--text);flex:1}
+.rs{font-size:11px;color:var(--text2);margin-top:1px}
+.var-label{font-weight:400;color:var(--text2)}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.result-count{background:var(--bg2);border-bottom:0.5px solid var(--border);padding:4px 12px;font-size:10px;color:var(--text2)}
+
+/* ── BADGES ── */
+.badge{font-size:10px;padding:2px 6px;border-radius:20px;font-weight:500;flex-shrink:0;white-space:nowrap}
+.b-ok{background:var(--green-bg);color:var(--green-t)}
+.b-warn{background:var(--amber-bg);color:var(--amber-t)}
+.b-bb{background:var(--orange-bg);color:var(--orange-t)}
+.b-exp{background:var(--red-bg);color:var(--red-t)}
+.b-blue{background:var(--blue-bg);color:var(--blue-t)}
+.b-gray{background:var(--bg2);color:var(--text2);border:0.5px solid var(--border2)}
+
+/* ── STATS ── */
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:9px 12px;border-bottom:0.5px solid var(--border)}
+.sc{background:var(--bg2);border-radius:var(--r);padding:8px 10px}
+.sl{font-size:10px;color:var(--text2)}
+.sv{font-size:16px;font-weight:600;color:var(--text);margin-top:1px}
+.kg{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:9px 12px}
+.kc{background:var(--bg2);border-radius:var(--r);padding:8px 10px}
+.kl{font-size:10px;color:var(--text2)}
+.kv{font-size:15px;font-weight:600;color:var(--text);margin-top:1px}
+.ks{font-size:10px;margin-top:1px}
+
+/* ── PRODUCT CARD ── */
+.pc{padding:11px 12px;border-bottom:0.5px solid var(--border)}
+.ps{display:grid;grid-template-columns:repeat(4,1fr);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;margin:7px 0}
+.psc{padding:6px;text-align:center;border-right:0.5px solid var(--border)}
+.psc:last-child{border-right:none}
+.psl{font-size:9px;color:var(--text3)}
+.psv{font-size:12px;font-weight:600;color:var(--text);margin-top:1px}
+.bi{display:flex;align-items:center;gap:6px;padding:5px 8px;background:var(--bg2);border-radius:var(--r);margin-bottom:4px}
+.bl{font-size:11px;font-weight:600;background:var(--bg);padding:2px 6px;border-radius:5px;border:0.5px solid var(--border)}
+.batch-hd{font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
+.ar{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:7px}
+.ab{padding:8px 4px;border-radius:var(--r);border:0.5px solid var(--border2);background:var(--bg);font-size:10px;color:var(--text2);cursor:pointer;text-align:center}
+.ab:hover,.ab:active{background:var(--bg2)}
+
+/* ── SHELF GRID ── */
+.shg{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;padding:5px 12px 9px}
+.sf{border-radius:var(--r);border:0.5px solid var(--border2);background:var(--bg2);padding:8px 4px;text-align:center;cursor:pointer;transition:background .12s}
+.sf:hover{background:var(--blue-bg)}
+.sf.has-exp{border-color:var(--red);background:var(--red-bg)}
+.sf.has-warn{border-color:var(--amber);background:var(--amber-bg)}
+.sfc{font-size:11px;font-weight:600;color:var(--text)}
+.sfs{font-size:9px;color:var(--text3);margin-top:1px}
+
+/* ── FORM ── */
+.fg{padding:9px 12px;border-bottom:0.5px solid var(--border)}
+.fl{font-size:11px;color:var(--text2);margin-bottom:4px}
+.fi{width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:var(--r);font-size:13px;color:var(--text);background:var(--bg);outline:none;-webkit-appearance:none}
+.fi:focus{border-color:var(--blue)}
+.fsel{width:100%;padding:8px 10px;border:0.5px solid var(--border2);border-radius:var(--r);font-size:13px;color:var(--text);background:var(--bg);outline:none;-webkit-appearance:none}
+.dtr{display:flex;gap:6px}
+.dtb{flex:1;padding:8px;border-radius:var(--r);border:0.5px solid var(--border2);background:var(--bg);font-size:12px;color:var(--text2);cursor:pointer;text-align:center;transition:all .15s}
+.dtb.active{background:var(--blue-bg);color:var(--blue-t);border-color:var(--blue)}
+.pb{display:block;width:calc(100% - 24px);margin:12px;padding:12px;font-size:13px;font-weight:600;border-radius:var(--rl);border:none;background:var(--blue);color:#fff;cursor:pointer;text-align:center}
+.pb:active{opacity:.85}
+.bk{display:flex;align-items:center;gap:5px;padding:8px 12px;font-size:12px;color:var(--text2);cursor:pointer;border:none;background:none}
+
+/* ── CALENDAR ── */
+.cg{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;padding:5px 12px 3px}
+.chd{text-align:center;font-size:9px;color:var(--text3);font-weight:600;padding:2px 0}
+.cd{text-align:center;font-size:11px;padding:5px 2px;border-radius:5px;cursor:pointer;color:var(--text);position:relative;transition:background .12s}
+.cd:hover{background:var(--bg2)}
+.cd.sel{background:var(--blue-bg);color:var(--blue-t);font-weight:600}
+.cd::after{content:'';position:absolute;bottom:1px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%}
+.cd.approved::after{background:var(--green)}
+.cd.pending::after{background:var(--amber)}
+.cd.entries::after{background:var(--blue)}
+.cd.empty{color:var(--text3);cursor:default}
+
+/* ── BAR CHART ── */
+.br{display:flex;align-items:center;gap:6px;margin-bottom:5px;padding:0 12px}
+.bd{font-size:10px;color:var(--text2);width:18px}
+.bt{flex:1;height:6px;background:var(--bg2);border-radius:3px;overflow:hidden}
+.bf{height:100%;border-radius:3px;background:var(--blue-bg);border:0.5px solid var(--blue)}
+.bf.prev{background:var(--bg3);border-color:var(--border2)}
+.ba{font-size:10px;color:var(--text2);width:40px;text-align:right}
+
+/* ── SYNC TOGGLE ── */
+.sr2{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:0.5px solid var(--border)}
+.toggle{position:relative;width:38px;height:21px;background:var(--border2);border-radius:11px;cursor:pointer;transition:background .2s;border:none;flex-shrink:0}
+.toggle.on{background:var(--blue)}
+.toggle::after{content:'';position:absolute;top:2px;left:2px;width:17px;height:17px;background:#fff;border-radius:50%;transition:transform .2s}
+.toggle.on::after{transform:translateX(17px)}
+.fqs{font-size:11px;padding:4px 7px;border:0.5px solid var(--border2);border-radius:var(--r);background:var(--bg);color:var(--text);outline:none}
+
+/* ── MENU ROWS ── */
+.mr{display:flex;align-items:center;gap:11px;padding:11px 12px;border-bottom:0.5px solid var(--border);cursor:pointer;transition:background .12s}
+.mr:hover,.mr:active{background:var(--bg2)}
+.mi{width:34px;height:34px;border-radius:var(--r);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.av{width:30px;height:30px;border-radius:50%;background:var(--blue-bg);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--blue-t);flex-shrink:0}
+.empty{padding:28px 12px;text-align:center;color:var(--text3);font-size:13px}
+
+/* MODAL (staff form) */
+.modal-ov{position:absolute;inset:0;background:rgba(0,0,0,.4);z-index:1050;display:none;align-items:flex-end}
+.modal-ov.on{display:flex}
+.msheet{background:var(--bg);border-radius:20px 20px 0 0;width:100%;max-height:90%;overflow-y:auto;animation:slideup .25s ease}
+@keyframes slideup{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.mhd{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:0.5px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:2}
+.mtitle{font-size:16px;font-weight:600}
+.mclose{width:28px;height:28px;border-radius:50%;background:var(--bg2);border:none;font-size:14px;cursor:pointer;color:var(--text2)}
+.mfoot{display:flex;gap:8px;padding:12px 16px;border-top:0.5px solid var(--border);position:sticky;bottom:0;background:var(--bg)}
+.mfoot button{flex:1;padding:12px;border-radius:var(--rl);font-size:14px;font-weight:600;cursor:pointer;border:none}
+.btn-ghost{background:var(--bg2);color:var(--text2)}
+.btn-blue{background:var(--blue);color:#fff}
+.fld-row{display:flex;gap:8px}
+.fld-row .fg{flex:1}
+.info-box{margin:10px 12px;padding:8px 10px;background:var(--amber-bg);border-radius:8px;border-left:3px solid var(--amber);font-size:11px;color:var(--amber-t)}
+</style>
+</head>
+<body>
+<div class="device-wrap">
+  <div class="status-bar">
+    <span class="status-time" id="clk">9:41</span>
+    <div style="display:flex;gap:6px;font-size:12px">●●● WiFi 🔋</div>
+  </div>
+
+  <!-- UPDATE BANNER -->
+  <div id="update-banner">
+    <div style="flex:1">
+      <div style="font-weight:700">🆕 New version available</div>
+      <div style="font-size:11px;opacity:.85" id="update-banner-sub">Tap to update</div>
+    </div>
+    <button onclick="applyUpdate()">Update now</button>
+  </div>
+
+  <!-- LOADING OVERLAY (ring %) -->
+  <div id="load-overlay">
+    <div class="ospin" id="ospin-el"></div>
+    <div id="oprog-el" style="display:none;position:relative;width:64px;height:64px">
+      <svg width="64" height="64" viewBox="0 0 64 64" style="transform:rotate(-90deg)">
+        <circle cx="32" cy="32" r="28" fill="none" stroke="#e5e4e0" stroke-width="5"></circle>
+        <circle id="oprog-ring" cx="32" cy="32" r="28" fill="none" stroke="#185FA5" stroke-width="5" stroke-linecap="round" stroke-dasharray="175.93" stroke-dashoffset="175.93" style="transition:stroke-dashoffset .25s ease"></circle>
+      </svg>
+      <div id="oprog-pct" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:var(--blue)">0%</div>
+    </div>
+    <div id="ot">Loading...</div>
+  </div>
+
+  <!-- SCANNER FULLSCREEN -->
+  <div class="scan-fullscreen" id="scan-fullscreen">
+    <div class="scan-fs-video-wrap">
+      <video id="scan-video" playsinline autoplay muted></video>
+      <div class="scan-fs-overlay"><div class="scan-fs-frame"><div class="scan-line"></div></div></div>
+      <div class="scan-fs-top">
+        <span class="scan-fs-title">Scan barcode</span>
+        <button class="scan-fs-close" onclick="closeScanner()">✕</button>
+      </div>
+      <div class="scan-fs-bottom">
+        <div class="scan-fs-hint" id="scan-fs-hint">Point camera at barcode</div>
+        <button class="scan-fs-capture" onclick="captureAndDecode()">📷 Capture</button>
+        <div class="scan-fs-manual">
+          <input type="text" id="scan-fs-input" placeholder="Or type SKU..." inputmode="numeric" onkeydown="if(event.key==='Enter')manualScanSubmit()">
+          <button onclick="manualScanSubmit()">Go</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOGIN -->
+  <div id="s-login" style="display:flex">
+    <div class="auth-wrap">
+      <img src="icons/logo-full.png" alt="Lantern Mart" style="width:180px;max-width:60%;margin:0 auto 14px;display:block">
+      <div style="font-size:13px;color:var(--text2);text-align:center;margin-bottom:28px">Select your store to continue</div>
+      <button class="store-btn" onclick="goPin('Rockhampton')">
+        <div class="store-icon">🏪</div>
+        <div><div style="font-weight:600;font-size:14px">Rockhampton</div><div style="font-size:11px;color:var(--text2)">Queensland, AU</div></div>
+        <div style="margin-left:auto;color:var(--text3);font-size:18px">›</div>
+      </button>
+      <button class="store-btn" onclick="goPin('Townsville')">
+        <div class="store-icon">🏪</div>
+        <div><div style="font-weight:600;font-size:14px">Townsville</div><div style="font-size:11px;color:var(--text2)">Queensland, AU</div></div>
+        <div style="margin-left:auto;color:var(--text3);font-size:18px">›</div>
+      </button>
+    </div>
+  </div>
+
+  <!-- NAME PICKER (live mode) -->
+  <div id="s-namepick" style="display:none">
+    <div class="auth-wrap">
+      <div style="font-size:13px;color:var(--text2);text-align:center;margin-bottom:2px" id="np-store">Rockhampton</div>
+      <div style="font-size:20px;font-weight:700;text-align:center;margin-bottom:20px">Who are you?</div>
+      <div id="np-list" style="width:100%;max-width:320px"><div class="empty">Loading staff...</div></div>
+      <div style="text-align:center;margin-top:14px">
+        <button onclick="showScreen('login')" style="font-size:12px;color:var(--text2);border:none;background:none;cursor:pointer">← Back to stores</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PIN -->
+  <div id="s-pin">
+    <div class="auth-wrap">
+      <div class="pin-box">
+        <div style="text-align:center;font-size:12px;color:var(--text2)" id="pin-store">Rockhampton</div>
+        <div style="text-align:center;font-size:17px;font-weight:600;margin-top:4px">Enter PIN</div>
+        <div class="pin-dots">
+          <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
+          <div class="pin-dot" id="pd2"></div><div class="pin-dot" id="pd3"></div>
+        </div>
+        <div class="pin-grid">
+          <button class="pin-key" onclick="addPin(1)">1</button><button class="pin-key" onclick="addPin(2)">2</button><button class="pin-key" onclick="addPin(3)">3</button>
+          <button class="pin-key" onclick="addPin(4)">4</button><button class="pin-key" onclick="addPin(5)">5</button><button class="pin-key" onclick="addPin(6)">6</button>
+          <button class="pin-key" onclick="addPin(7)">7</button><button class="pin-key" onclick="addPin(8)">8</button><button class="pin-key" onclick="addPin(9)">9</button>
+          <button class="pin-key" onclick="clearPin()" style="font-size:13px;color:var(--text2)">CLR</button>
+          <button class="pin-key" onclick="addPin(0)">0</button>
+          <button class="pin-key" onclick="deletePin()" style="font-size:18px">⌫</button>
+        </div>
+        <div id="pin-err" style="text-align:center;font-size:12px;color:var(--red);margin-top:10px;min-height:16px"></div>
+        <div style="text-align:center;margin-top:6px;font-size:11px;color:var(--text3)">Demo PIN: 1234</div>
+        <div style="text-align:center;margin-top:8px">
+          <button onclick="showScreen('login')" style="font-size:12px;color:var(--text2);border:none;background:none;cursor:pointer">← Back to stores</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="s-app">
+    <!-- Pull-to-refresh indicator -->
+    <div id="ptr-indicator"><span class="ptr-pct">0%</span><span class="ptr-spin"></span></div>
+
+    <!-- Floating menu arrow -->
+    <button class="menu-btn" id="menu-btn" onclick="toggleDrawer()">›</button>
+
+    <!-- Overlay -->
+    <div class="drawer-overlay" id="overlay" onclick="closeDrawer()"></div>
+
+    <!-- Drawer -->
+    <div class="drawer" id="drawer">
+      <div class="drawer-header">
+        <div class="drawer-header-top">
+          <span class="drawer-logo" style="display:flex;align-items:center;gap:7px"><img src="icons/symbol.png" alt="" style="width:22px;height:22px">Lantern Mart</span>
+          <button class="drawer-close" onclick="closeDrawer()">✕</button>
+        </div>
+        <div class="drawer-store-card">
+          <div style="font-size:12px;font-weight:600;color:var(--text)" id="dh-store">Rockhampton</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:1px" id="dh-user">Staff</div>
+        </div>
+      </div>
+      <div class="nav-items">
+        <button class="nav-item active" id="ni-scan" onclick="switchTab('scan')"><span class="nav-icon">📷</span><span class="nav-lbl">Scan</span></button>
+        <button class="nav-item" id="ni-inventory" onclick="switchTab('inventory')"><span class="nav-icon">📦</span><span class="nav-lbl">Inventory</span><span class="nav-badge" id="inv-alert-badge">0</span></button>
+        <button class="nav-item" id="ni-order" onclick="switchTab('order')"><span class="nav-icon">📋</span><span class="nav-lbl">Orders</span></button>
+        <button class="nav-item" id="ni-cashflow" onclick="switchTab('cashflow')"><span class="nav-icon">💵</span><span class="nav-lbl">Cashflow</span></button>
+        <div class="nav-divider"></div>
+        <div class="nav-section">Admin</div>
+        <button class="nav-item" id="ni-dashboard" onclick="switchTab('dashboard')"><span class="nav-icon">📊</span><span class="nav-lbl">Dashboard</span></button>
+        <button class="nav-item" id="ni-payroll" onclick="switchTab('payroll')"><span class="nav-icon">👥</span><span class="nav-lbl">Payroll</span></button>
+        <button class="nav-item" id="ni-sync" onclick="switchTab('sync')"><span class="nav-icon">🔄</span><span class="nav-lbl">Sync</span></button>
+        <button class="nav-item" id="ni-export" onclick="switchTab('export')"><span class="nav-icon">⬇️</span><span class="nav-lbl">Export</span></button>
+        <button class="nav-item" id="ni-settings" onclick="switchTab('settings');loadSettings()"><span class="nav-icon">⚙️</span><span class="nav-lbl">Settings</span></button>
+        <div class="nav-divider"></div>
+        <button class="nav-item" onclick="doLogout()"><span class="nav-icon">🚪</span><span class="nav-lbl" style="color:var(--red)">Log out</span></button>
+      </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main">
+
+      <!-- ── SCAN ── -->
+      <div id="t-scan" class="tab-pane active">
+        <div class="topbar"><span style="font-size:17px">📷</span><span class="topbar-title">Scan</span><span class="topbar-sub" id="scan-store">Rockhampton</span></div>
+        <div class="search-bar">
+          <div class="search-wrap">
+            <span style="font-size:13px;color:var(--text3)">🔍</span>
+            <input type="text" placeholder="Name / SKU / supplier..." id="scan-q" oninput="doSearch(this.value,'scan')" autocomplete="off" autocorrect="off">
+            <span id="scan-clr" style="font-size:12px;color:var(--text3);cursor:pointer;display:none" onclick="clearSearch('scan')">✕</span>
+          </div>
+          <button class="scan-btn" onclick="openScanner('scan')" title="Scan barcode">📷</button>
+        </div>
+        <div class="content">
+          <div id="scan-empty" style="padding:28px 12px;text-align:center">
+            <div style="font-size:38px;margin-bottom:10px">📦</div>
+            <div style="font-size:14px;font-weight:500;margin-bottom:3px">Scan or search a product</div>
+            <div style="font-size:12px;color:var(--text2)">Name, SKU, or supplier code</div>
+          </div>
+          <div id="scan-res" style="display:none"></div>
+          <div id="scan-prod" style="display:none"></div>
+        </div>
+      </div>
+
+      <!-- ── INVENTORY ── -->
+      <div id="t-inventory" class="tab-pane">
+        <div class="topbar"><span style="font-size:17px">📦</span><span class="topbar-title">Inventory</span><span style="cursor:pointer;font-size:17px" onclick="invSeg('alerts')">🔔</span></div>
+        <div class="seg">
+          <button class="seg-btn active" id="is-overview" onclick="invSeg('overview')">Overview</button>
+          <button class="seg-btn" id="is-alerts" onclick="invSeg('alerts')">Alerts</button>
+          <button class="seg-btn" id="is-shelves" onclick="invSeg('shelves')">Shelves</button>
+          <button class="seg-btn" id="is-load" onclick="invSeg('load')">Load stock</button>
+        </div>
+        <div class="content">
+          <div id="ip-overview" class="panel active">
+            <div class="sg" id="inv-stats">
+              <div class="sc"><div class="sl">Total SKUs</div><div class="sv">—</div></div>
+              <div class="sc"><div class="sl">Expired</div><div class="sv" style="color:var(--red)">—</div></div>
+              <div class="sc"><div class="sl">Expiring soon</div><div class="sv" style="color:var(--amber)">—</div></div>
+              <div class="sc"><div class="sl">Low stock</div><div class="sv" style="color:var(--orange)">—</div></div>
+            </div>
+            <div class="search-bar" style="border-top:none">
+              <div class="search-wrap"><span style="font-size:13px;color:var(--text3)">🔍</span><input type="text" placeholder="Name / SKU / supplier..." id="inv-q" oninput="doSearch(this.value,'inv')" autocomplete="off"><span id="inv-clr" style="display:none;cursor:pointer;color:var(--text3);font-size:12px" onclick="clearSearch('inv')">✕</span></div>
+              <button class="scan-btn" onclick="openScanner('inv')">📷</button>
+            </div>
+            <div id="inv-sr"></div>
+            <div class="sh">Recent batches</div>
+            <div id="inv-recent-batches"><div class="empty">No batches loaded yet. Load stock to get started.</div></div>
+          </div>
+          <div id="ip-alerts" class="panel"><div class="empty">Loading alerts...</div></div>
+          <div id="ip-shelves" class="panel">
+            <div class="sh">Dry shelves</div>
+            <div class="shg">
+              <div class="sf" onclick="alert('A1 — filter coming in production')"><div class="sfc">A1</div><div class="sfs">Dry shelf</div></div>
+              <div class="sf"><div class="sfc">A2</div><div class="sfs">Dry shelf</div></div>
+              <div class="sf"><div class="sfc">B1</div><div class="sfs">Dry shelf</div></div>
+              <div class="sf"><div class="sfc">B2</div><div class="sfs">Dry shelf</div></div>
+              <div class="sf"><div class="sfc">C1</div><div class="sfs">Dry shelf</div></div>
+              <div class="sf"><div class="sfc">C2</div><div class="sfs">Dry shelf</div></div>
+              <div class="sf"><div class="sfc">D1</div><div class="sfs">Dry shelf</div></div>
+              <div class="sf"><div class="sfc">D2</div><div class="sfs">Dry shelf</div></div>
+              <div class="sf"><div class="sfc">E1</div><div class="sfs">Dry shelf</div></div>
+              <div class="sf"><div class="sfc">E2</div><div class="sfs">Dry shelf</div></div>
+              <div class="sf"><div class="sfc">F1</div><div class="sfs">Dry shelf</div></div>
+              <div class="sf"><div class="sfc">F2</div><div class="sfs">Dry shelf</div></div>
+            </div>
+            <div class="sh">Cold & storage</div>
+            <div class="shg">
+              <div class="sf"><div class="sfc" style="font-size:9px">Cold Rm</div><div class="sfs">Cold</div></div>
+              <div class="sf"><div class="sfc" style="font-size:9px">Chiller</div><div class="sfs">Cold</div></div>
+              <div class="sf"><div class="sfc" style="font-size:9px">Bev Fridge</div><div class="sfs">Fridge</div></div>
+              <div class="sf"><div class="sfc" style="font-size:9px">ISS</div><div class="sfs">In-store</div></div>
+              <div class="sf"><div class="sfc" style="font-size:9px">SR1</div><div class="sfs">Store Rm 1</div></div>
+              <div class="sf"><div class="sfc" style="font-size:9px">SR2</div><div class="sfs">Store Rm 2</div></div>
+            </div>
+          </div>
+          <div id="ip-load" class="panel">
+            <div id="load-sa">
+              <div class="search-bar" style="border-top:none">
+                <div class="search-wrap"><span style="font-size:13px;color:var(--text3)">🔍</span><input type="text" placeholder="Scan or search product..." id="load-q" oninput="doSearch(this.value,'load')" autocomplete="off"><span id="load-clr" style="display:none;cursor:pointer;color:var(--text3);font-size:12px" onclick="clearSearch('load')">✕</span></div>
+                <button class="scan-btn" onclick="openScanner('load')">📷</button>
+              </div>
+              <div id="load-sr"></div>
+            </div>
+            <div id="load-form" style="display:none">
+              <div style="padding:9px 12px;border-bottom:0.5px solid var(--border);background:var(--bg2)">
+                <div style="font-size:13px;font-weight:600" id="lf-name"></div>
+                <div style="font-size:11px;color:var(--text2)" id="lf-sku"></div>
+              </div>
+              <div class="fg"><div class="fl">Location</div>
+                <select class="fsel" id="lf-loc">
+                  <option>A1 — Dry shelf</option><option>A2 — Dry shelf</option><option>B1 — Dry shelf</option><option>B2 — Dry shelf</option>
+                  <option>C1 — Dry shelf</option><option>C2 — Dry shelf</option><option>D1 — Dry shelf</option><option>D2 — Dry shelf</option>
+                  <option>E1 — Dry shelf</option><option>E2 — Dry shelf</option><option>F1 — Dry shelf</option><option>F2 — Dry shelf</option>
+                  <option>Cold Room</option><option>Chiller</option><option>Beverage Fridge</option>
+                  <option>In-Store Storage</option><option>Store Room 1</option><option>Store Room 2</option>
+                </select>
+              </div>
+              <div class="fg"><div class="fl">Quantity</div><input type="number" class="fi" id="lf-qty" placeholder="0" min="1" inputmode="numeric"></div>
+              <div class="fg"><div class="fl">Date type</div>
+                <div class="dtr">
+                  <button class="dtb active" id="dt-bb" onclick="setDateType('bb')">Best Before</button>
+                  <button class="dtb" id="dt-exp" onclick="setDateType('exp')">Expiry Date</button>
+                </div>
+              </div>
+              <div class="fg"><div class="fl" id="dt-lbl">Best Before date</div><input type="date" class="fi" id="lf-date"></div>
+              <button class="pb" onclick="saveLoadStock()">Save batch ✓</button>
+              <button class="bk" onclick="resetLoadForm()">← Search another product</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ORDER ── -->
+      <div id="t-order" class="tab-pane">
+        <div class="topbar"><span style="font-size:17px">📋</span><span class="topbar-title">Orders</span><button style="font-size:11px;padding:5px 9px;border-radius:var(--r);border:0.5px solid var(--border2);background:var(--bg);cursor:pointer" onclick="ordSeg('wishlist')">+ New order</button></div>
+        <div class="seg">
+          <button class="seg-btn active" id="os-orders" onclick="ordSeg('orders')">Orders</button>
+          <button class="seg-btn" id="os-wishlist" onclick="ordSeg('wishlist')">Wishlist</button>
+          <button class="seg-btn" id="os-suggest" onclick="ordSeg('suggest')">Suggested <span class="nav-badge" id="suggest-badge" style="margin-left:2px">0</span></button>
+        </div>
+        <div class="content">
+          <div id="op-orders" class="panel active">
+            <div class="search-bar" style="border-top:none"><div class="search-wrap"><span style="font-size:13px;color:var(--text3)">🔍</span><input type="text" placeholder="Name / SKU / supplier..."></div></div>
+            <div class="empty">No orders yet. Create one from Wishlist ↑</div>
+          </div>
+          <div id="op-wishlist" class="panel">
+            <div class="search-bar" style="border-top:none">
+              <div class="search-wrap"><span style="font-size:13px;color:var(--text3)">🔍</span><input type="text" placeholder="Name / SKU / supplier..." id="wish-q" oninput="doSearch(this.value,'wish')" autocomplete="off"><span id="wish-clr" style="display:none;cursor:pointer;color:var(--text3);font-size:12px" onclick="clearSearch('wish')">✕</span></div>
+              <button class="scan-btn" onclick="openScanner('wish')">📷</button>
+            </div>
+            <div id="wish-sr"></div>
+            <div style="padding:6px 12px 3px;display:flex;justify-content:space-between;align-items:center">
+              <span class="sh" style="padding:0">Wishlist</span>
+              <button style="font-size:11px;padding:4px 8px;border-radius:var(--r);border:0.5px solid var(--blue);color:var(--blue-t);background:var(--blue-bg);cursor:pointer" onclick="alert('Create order — coming soon')">Create order ↗</button>
+            </div>
+            <div id="wish-items"><div class="empty">Wishlist is empty</div></div>
+          </div>
+          <div id="op-suggest" class="panel">
+            <div class="search-bar" style="border-top:none"><div class="search-wrap"><span style="font-size:13px;color:var(--text3)">🔍</span><input type="text" placeholder="Name / SKU / supplier..."></div></div>
+            <div style="padding:6px 12px;font-size:11px;color:var(--text2)">Auto-detected — below reorder point</div>
+            <div id="suggest-list"><div class="empty">Sync products first to see suggestions</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── CASHFLOW ── -->
+      <div id="t-cashflow" class="tab-pane">
+        <div class="topbar"><span style="font-size:17px">💵</span><span class="topbar-title">Cashflow</span><span class="topbar-sub" id="cf-date"></span></div>
+        <div class="seg">
+          <button class="seg-btn active" id="cs-today" onclick="cfSeg('today')">Today</button>
+          <button class="seg-btn" id="cs-eod" onclick="cfSeg('eod')">End of day</button>
+          <button class="seg-btn" id="cs-history" onclick="cfSeg('history')">History</button>
+        </div>
+        <div class="content">
+          <div id="cp-today" class="panel active">
+            <div class="sg" id="cf-stats">
+              <div class="sc"><div class="sl">Cash in</div><div class="sv" style="color:var(--green)">$0.00</div></div>
+              <div class="sc"><div class="sl">Cash out</div><div class="sv" style="color:var(--red)">$0.00</div></div>
+              <div class="sc"><div class="sl">Net cash</div><div class="sv">$0.00</div></div>
+              <div class="sc"><div class="sl">Entries</div><div class="sv">0</div></div>
+            </div>
+            <div style="padding:7px 12px 3px;display:flex;justify-content:space-between;align-items:center">
+              <span class="sh" style="padding:0">Today's entries</span>
+              <button onclick="addCashEntry()" style="font-size:11px;padding:4px 8px;border-radius:var(--r);border:0.5px solid var(--border2);background:var(--bg);cursor:pointer">+ Add entry</button>
+            </div>
+            <div id="cf-entries"><div class="empty">No entries today</div></div>
+          </div>
+          <div id="cp-eod" class="panel">
+            <div style="padding:8px 12px;font-size:11px;color:var(--text2);border-bottom:0.5px solid var(--border)" id="cf-eod-date">End of day reconciliation</div>
+            <div class="sh">Sales (from last sync)</div>
+            <div class="row" style="cursor:default"><div style="flex:1"><div class="rn">Cash sale</div><span class="badge b-blue">Lightspeed</span></div><span id="eod-cash-sale" style="font-size:12px;font-weight:600">—</span></div>
+            <div class="row" style="cursor:default"><div style="flex:1"><div class="rn">Card sale</div><span class="badge b-blue">Lightspeed</span></div><span id="eod-card-sale" style="font-size:12px;font-weight:600">—</span></div>
+            <div class="sh">Cash count</div>
+            <div class="row" style="cursor:default"><span class="rn" style="flex:1">Expected cash</span><span id="eod-expected" style="font-size:12px;font-weight:600">—</span></div>
+            <div class="row" style="cursor:default"><span class="rn" style="flex:1">Actual cash count</span><input type="number" id="eod-act" placeholder="0.00" inputmode="decimal" style="width:75px;text-align:right;border:none;border-bottom:1px solid var(--border2);font-size:12px;font-weight:600;background:transparent;outline:none" oninput="calcVariance()"></div>
+            <div class="row" style="cursor:default"><span class="rn" style="flex:1">Variance</span><span id="eod-var" style="font-size:12px;font-weight:600;color:var(--text2)">—</span></div>
+            <button class="pb" onclick="confirmEOD()">Confirm end of day ✓</button>
+          </div>
+          <div id="cp-history" class="panel">
+            <div id="cf-history-list"><div class="empty">No history yet</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── DASHBOARD ── -->
+      <div id="t-dashboard" class="tab-pane">
+        <div class="topbar"><span style="font-size:17px">📊</span><span class="topbar-title">Dashboard</span><span class="topbar-sub">This week</span></div>
+        <div class="seg">
+          <button class="seg-btn active" id="ds-weekly" onclick="dashSeg('weekly')">Weekly</button>
+          <button class="seg-btn" id="ds-alerts" onclick="dashSeg('alerts')">Alerts</button>
+        </div>
+        <div class="content">
+          <div id="dp-weekly" class="panel active">
+            <div class="kg" id="dash-kpis">
+              <div class="kc"><div class="kl">Total revenue</div><div class="kv">—</div><div class="ks" style="color:var(--text2)">Sync to load</div></div>
+              <div class="kc"><div class="kl">Cash on hand</div><div class="kv">—</div></div>
+              <div class="kc"><div class="kl">Cash sale</div><div class="kv">—</div></div>
+              <div class="kc"><div class="kl">Card sale</div><div class="kv">—</div></div>
+              <div class="kc"><div class="kl">Cash out</div><div class="kv">—</div></div>
+              <div class="kc"><div class="kl">Payroll est.</div><div class="kv">—</div></div>
+            </div>
+            <div class="sh">Cash on hand formula</div>
+            <div class="row" style="cursor:default"><span class="rn" style="flex:1">Opening balance</span><span id="dash-opening" style="font-size:12px;font-weight:500">—</span></div>
+            <div class="row" style="cursor:default"><span class="rn" style="flex:1">+ Cash sale</span><span id="dash-cash-sale" style="font-size:12px;font-weight:500;color:var(--green)">—</span></div>
+            <div class="row" style="cursor:default"><span class="rn" style="flex:1">− Cash out</span><span id="dash-cash-out" style="font-size:12px;font-weight:500;color:var(--red)">—</span></div>
+            <div class="row" style="cursor:default"><span class="rn" style="flex:1">− Payroll cash</span><span id="dash-payroll" style="font-size:12px;font-weight:500;color:var(--red)">—</span></div>
+            <div class="row" style="cursor:default;border-bottom:none"><span style="font-size:13px;font-weight:600;flex:1">Cash on hand</span><span id="dash-coh" style="font-size:15px;font-weight:700;color:var(--green)">—</span></div>
+            <div style="padding:10px 12px;display:grid;grid-template-columns:1fr 1fr;gap:7px">
+              <button style="padding:9px;font-size:11px;border-radius:var(--rl);border:0.5px solid var(--border2);background:var(--bg);cursor:pointer" onclick="exportData('dashboard','PDF')">Export PDF ↗</button>
+              <button style="padding:9px;font-size:11px;font-weight:600;border-radius:var(--rl);border:0.5px solid var(--blue);color:var(--blue-t);background:var(--blue-bg);cursor:pointer" onclick="alert('Close week — confirm closing balance')">Close week ↗</button>
+            </div>
+          </div>
+          <div id="dp-alerts" class="panel">
+            <div id="dash-alerts-content"><div class="empty">Loading alerts...</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PAYROLL ── -->
+      <div id="t-payroll" class="tab-pane">
+        <div class="topbar"><span style="font-size:17px">👥</span><span class="topbar-title">Payroll</span></div>
+        <div class="seg">
+          <button class="seg-btn active" id="ps-timesheet" onclick="paySeg('timesheet')">Timesheet</button>
+          <button class="seg-btn" id="ps-payroll" onclick="paySeg('payroll')">Payroll</button>
+          <button class="seg-btn" id="ps-staff" onclick="paySeg('staff')">Staff</button>
+        </div>
+        <div class="content">
+          <div id="pp-timesheet" class="panel active">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 12px 0">
+              <button style="border:none;background:none;cursor:pointer;color:var(--text2);font-size:17px">‹</button>
+              <span style="font-size:11px;font-weight:500;color:var(--text2)">This week</span>
+              <button style="border:none;background:none;cursor:pointer;color:var(--text2);font-size:17px">›</button>
+            </div>
+            <div class="cg">
+              <div class="chd">M</div><div class="chd">T</div><div class="chd">W</div><div class="chd">T</div><div class="chd">F</div><div class="chd">S</div><div class="chd">S</div>
+              <div class="cd" onclick="selectDay(this)">—</div><div class="cd" onclick="selectDay(this)">—</div><div class="cd" onclick="selectDay(this)">—</div>
+              <div class="cd" onclick="selectDay(this)">—</div><div class="cd sel" onclick="selectDay(this)">—</div>
+              <div class="cd" onclick="selectDay(this)">—</div><div class="cd empty">—</div>
+            </div>
+            <div style="display:flex;gap:10px;padding:3px 12px 5px;font-size:10px;color:var(--text3)"><span>🟢 Approved</span><span>🟡 Pending</span><span>🔵 Has entries</span></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px 3px;border-top:0.5px solid var(--border)">
+              <span style="font-size:12px;font-weight:500">Today — add staff to get started</span>
+              <button style="font-size:11px;padding:4px 8px;border-radius:var(--r);border:0.5px solid var(--green);color:var(--green-t);background:var(--green-bg);cursor:pointer" onclick="alert('Approve all timesheets')">Approve all</button>
+            </div>
+            <div class="empty">Add staff in the Staff tab to track timesheets</div>
+          </div>
+          <div id="pp-payroll" class="panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px 3px">
+              <span style="font-size:11px;color:var(--text2)">This week</span>
+              <button style="font-size:11px;padding:4px 8px;border-radius:var(--r);border:0.5px solid var(--border2);background:var(--bg);cursor:pointer" onclick="exportData('payroll','PDF')">Export ↗</button>
+            </div>
+            <div id="payroll-list"><div class="empty">No staff configured yet</div></div>
+            <div style="padding:10px 12px"><button style="width:100%;padding:10px;font-size:12px;font-weight:600;border-radius:var(--rl);border:0.5px solid var(--green);color:var(--green-t);background:var(--green-bg);cursor:pointer" onclick="alert('Lock & confirm payroll')">Lock & confirm payroll ↗</button></div>
+          </div>
+          <div id="pp-staff" class="panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px 3px">
+              <span class="sh" style="padding:0">Staff members</span>
+              <button style="font-size:11px;padding:4px 8px;border-radius:var(--r);border:0.5px solid var(--border2);background:var(--bg);cursor:pointer" onclick="openStaffForm()">+ Add staff</button>
+            </div>
+            <div id="staff-list"><div class="empty">No staff added yet</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── SYNC ── -->
+      <div id="t-sync" class="tab-pane">
+        <div class="topbar"><span style="font-size:17px">🔄</span><span class="topbar-title">Sync</span></div>
+        <div class="content">
+          <div style="padding:10px 12px 6px;font-size:12px;color:var(--text2);border-bottom:0.5px solid var(--border)">Lightspeed → Lantern Mart</div>
+          <div style="padding:10px 12px">
+            <button id="sync-now-btn" style="width:100%;padding:12px;font-size:13px;font-weight:600;border-radius:var(--rl);border:0.5px solid var(--blue);color:var(--blue-t);background:var(--blue-bg);cursor:pointer" onclick="triggerSync()">🔄 Sync now</button>
+            <div id="sync-status" style="text-align:center;font-size:11px;color:var(--text2);margin-top:8px">Never synced — configure API in Settings first</div>
+          </div>
+          <div class="sh">What gets synced</div>
+          <div class="row" style="cursor:default"><span style="font-size:17px">📦</span><div style="flex:1"><div class="rn">Products & variants</div><div class="rs">Name, SKU, price, supplier, GST</div></div><span class="badge b-ok">Auto</span></div>
+          <div class="row" style="cursor:default"><span style="font-size:17px">📊</span><div style="flex:1"><div class="rn">Inventory levels</div><div class="rs">Stock count per location</div></div><span class="badge b-ok">Auto</span></div>
+          <div class="row" style="cursor:default"><span style="font-size:17px">💰</span><div style="flex:1"><div class="rn">Sales (last 7 days)</div><div class="rs">Cash & card breakdown by day</div></div><span class="badge b-ok">Auto</span></div>
+          <div class="sh">Sync log</div>
+          <div id="sync-log"><div class="empty">No sync history</div></div>
+        </div>
+      </div>
+
+      <!-- ── EXPORT ── -->
+      <div id="t-export" class="tab-pane">
+        <div class="topbar"><span style="font-size:17px">⬇️</span><span class="topbar-title">Export center</span></div>
+        <div class="content">
+          <div class="sh">Inventory</div>
+          <div class="mr" onclick="exportData('BB/Expiry report','PDF')"><div class="mi" style="background:var(--red-bg)">📋</div><div style="flex:1"><div class="rn">BB / Expiry report</div><div class="rs">All batches with alert status</div></div><div style="display:flex;gap:4px"><span class="badge b-gray">PDF</span><span class="badge b-gray">Excel</span></div></div>
+          <div class="mr" onclick="exportData('Stock by location','Excel')"><div class="mi" style="background:var(--blue-bg)">📦</div><div style="flex:1"><div class="rn">Stock by location</div><div class="rs">All shelves and storage zones</div></div><div style="display:flex;gap:4px"><span class="badge b-gray">PDF</span><span class="badge b-gray">Excel</span></div></div>
+          <div class="sh">Orders</div>
+          <div class="mr" onclick="exportData('Order history','Excel')"><div class="mi" style="background:var(--amber-bg)">📋</div><div style="flex:1"><div class="rn">Order history</div><div class="rs">All orders with status</div></div><div style="display:flex;gap:4px"><span class="badge b-gray">PDF</span><span class="badge b-gray">Excel</span></div></div>
+          <div class="sh">Cashflow</div>
+          <div class="mr" onclick="exportData('Weekly cashflow','PDF')"><div class="mi" style="background:var(--green-bg)">💵</div><div style="flex:1"><div class="rn">Weekly cashflow</div><div class="rs">Cash in/out + EOD reconciliation</div></div><div style="display:flex;gap:4px"><span class="badge b-gray">PDF</span><span class="badge b-gray">Excel</span></div></div>
+          <div class="mr" onclick="exportData('Lightspeed audit','Excel')"><div class="mi" style="background:var(--blue-bg)">🔍</div><div style="flex:1"><div class="rn">Lightspeed audit</div><div class="rs">App vs Lightspeed comparison</div></div><div style="display:flex;gap:4px"><span class="badge b-gray">PDF</span><span class="badge b-gray">Excel</span></div></div>
+          <div class="sh">Payroll</div>
+          <div class="mr" onclick="exportData('Payroll summary','PDF')"><div class="mi" style="background:var(--orange-bg)">👥</div><div style="flex:1"><div class="rn">Payroll summary</div><div class="rs">Hours, wages, bank/cash split</div></div><div style="display:flex;gap:4px"><span class="badge b-gray">PDF</span><span class="badge b-gray">Excel</span></div></div>
+          <div class="mr" onclick="exportData('Timesheet','Excel')"><div class="mi" style="background:var(--bg2)">🕐</div><div style="flex:1"><div class="rn">Timesheet</div><div class="rs">Clock in/out log per staff</div></div><div style="display:flex;gap:4px"><span class="badge b-gray">PDF</span><span class="badge b-gray">Excel</span></div></div>
+          <div class="sh">Dashboard</div>
+          <div class="mr" onclick="exportData('Weekly report','PDF')"><div class="mi" style="background:var(--blue-bg)">📊</div><div style="flex:1"><div class="rn">Weekly report</div><div class="rs">Full dashboard summary</div></div><span class="badge b-gray">PDF</span></div>
+        </div>
+      </div>
+
+      <!-- ── SETTINGS ── -->
+      <div id="t-settings" class="tab-pane">
+        <div class="topbar"><span style="font-size:17px">⚙️</span><span class="topbar-title">Settings</span></div>
+        <div class="content">
+          <div class="sh">Google Sheets (shared database)</div>
+          <div class="fg"><div class="fl">Apps Script Web App URL</div><input type="text" class="fi" id="sheets-url" placeholder="https://script.google.com/.../exec"></div>
+          <div style="padding:10px 12px;border-bottom:0.5px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <button style="padding:9px;font-size:12px;border-radius:var(--r);border:0.5px solid var(--border2);background:var(--bg);cursor:pointer" onclick="testSheets()">Test connection</button>
+            <button style="padding:9px;font-size:12px;font-weight:600;border-radius:var(--r);border:none;background:var(--blue);color:#fff;cursor:pointer" onclick="saveSettings()">Save</button>
+          </div>
+          <div class="sh">Lightspeed API</div>
+          <div class="fg"><div class="fl">Account ID</div><input type="text" class="fi" id="ls-account-id" placeholder="e.g. 123456" inputmode="numeric"></div>
+          <div class="fg"><div class="fl">API Key (Bearer Token)</div><input type="password" class="fi" id="ls-api-key" placeholder="Paste your API key here"></div>
+          <div class="fg"><div class="fl">Shop ID (optional — for single store)</div><input type="text" class="fi" id="ls-shop-id" placeholder="e.g. 1"></div>
+          <div style="padding:10px 12px;border-bottom:0.5px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <button style="padding:9px;font-size:12px;border-radius:var(--r);border:0.5px solid var(--border2);background:var(--bg);cursor:pointer" onclick="testConnection()">Test connection</button>
+            <button style="padding:9px;font-size:12px;font-weight:600;border-radius:var(--r);border:none;background:var(--blue);color:#fff;cursor:pointer" onclick="saveSettings()">Save settings</button>
+          </div>
+          <div class="sh">App</div>
+          <div class="fg"><div class="fl">Your name</div><input type="text" class="fi" id="setting-user" placeholder="e.g. Minh Nguyen"></div>
+          <div class="fg"><div class="fl">PIN (4 digits)</div><input type="password" class="fi" id="setting-pin" placeholder="1234" maxlength="4" inputmode="numeric"></div>
+          <div style="padding:10px 12px;border-bottom:0.5px solid var(--border)">
+            <button class="pb" style="margin:0;width:100%" onclick="saveSettings()">Save settings ✓</button>
+          </div>
+          <div class="sh">Storage</div>
+          <div class="row" style="cursor:default"><span class="rn" style="flex:1">Data stored locally</span><span id="storage-size" style="font-size:11px;color:var(--text2)">—</span></div>
+          <div class="row" onclick="if(confirm('Clear all local data? This cannot be undone.')){DB.clearAll();alert('Cleared!')}" style="color:var(--red)">
+            <span class="rn" style="color:var(--red)">Clear all local data</span>
+          </div>
+          <div style="padding:12px;font-size:11px;color:var(--text3);text-align:center">
+            Lantern Mart v1.0.0 · Built for Rockhampton & Townsville
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /main -->
+  </div><!-- /s-app -->
+
+  <!-- STAFF FORM MODAL -->
+  <div class="modal-ov" id="staff-form-modal">
+    <div class="msheet">
+      <div class="mhd">
+        <span class="mtitle" id="sf-title">Add staff</span>
+        <button class="mclose" onclick="closeStaffForm()">✕</button>
+      </div>
+      <div class="fg"><div class="fl">Full name</div><input type="text" class="fi" id="sf-name" placeholder="e.g. Minh Nguyen"></div>
+      <div class="fg"><div class="fl">Role</div>
+        <select class="fsel" id="sf-role">
+          <option value="staff">👷 Staff — Scan, Inventory, Orders</option>
+          <option value="manager">📊 Manager — + Cashflow, Dashboard, Payroll</option>
+          <option value="admin">⚙️ Admin — Full access + Settings</option>
+        </select>
+      </div>
+      <div class="fg"><div class="fl">PIN (4 digits)</div><input type="password" class="fi" id="sf-pin" placeholder="0000" maxlength="4" inputmode="numeric"></div>
+
+      <div class="sh" style="margin-top:6px">💰 Payroll settings</div>
+      <div class="info-box">Set either <b>Hourly Rate</b> or <b>Daily Rate</b>. Daily Rate overrides Hourly if both set.</div>
+      <div class="fld-row">
+        <div class="fg"><div class="fl">Hourly Rate ($)</div><input type="number" class="fi" id="sf-hourly" value="0" min="0" step="0.01" inputmode="decimal"></div>
+        <div class="fg"><div class="fl">Daily Rate ($)</div><input type="number" class="fi" id="sf-daily" value="0" min="0" step="0.01" inputmode="decimal"></div>
+      </div>
+      <div class="fld-row">
+        <div class="fg"><div class="fl">Super Rate (%)</div><input type="number" class="fi" id="sf-super" value="11.5" min="0" step="0.01" inputmode="decimal"></div>
+        <div class="fg"><div class="fl">Saturday (×)</div><input type="number" class="fi" id="sf-sat" value="1.25" min="1" step="0.01" inputmode="decimal"></div>
+      </div>
+      <div class="fld-row">
+        <div class="fg"><div class="fl">Sunday (×)</div><input type="number" class="fi" id="sf-sun" value="1.5" min="1" step="0.01" inputmode="decimal"></div>
+        <div class="fg"><div class="fl">Public Holiday (×)</div><input type="number" class="fi" id="sf-ph" value="2.0" min="1" step="0.01" inputmode="decimal"></div>
+      </div>
+      <div class="fg"><div class="fl">Payment method</div>
+        <select class="fsel" id="sf-paymethod">
+          <option value="bank">Bank transfer</option>
+          <option value="cash">Cash</option>
+          <option value="split">Split (50/50)</option>
+        </select>
+      </div>
+      <button id="sf-delete" onclick="deleteStaffConfirm()" style="display:none;width:calc(100% - 24px);margin:8px 12px 0;padding:11px;border-radius:10px;border:0.5px solid var(--red);background:var(--red-bg);color:var(--red);font-size:13px;font-weight:600;cursor:pointer">🗑 Delete this staff</button>
+      <div class="mfoot">
+        <button class="btn-ghost" onclick="closeStaffForm()">Cancel</button>
+        <button class="btn-blue" onclick="saveStaffForm()">Save</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /device-wrap -->
+
+<script src="js/db.js"></script>
+<script src="js/sheets.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/ux.js"></script>
+<script src="js/payroll.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
