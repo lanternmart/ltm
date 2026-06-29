@@ -4,7 +4,6 @@
 var CACHE_NAME = 'lantern-v1.0.2';
 var APP_SHELL = [
   './index.html','./manifest.json',
-  './js/db.js','./js/supabase.js','./js/sync.js','./js/app.js',
   './icons/icon-192.png','./icons/icon-512.png'
 ];
 
@@ -33,9 +32,8 @@ self.addEventListener('activate', function(e){
 self.addEventListener('fetch', function(e){
   var url = new URL(e.request.url);
 
-  // Never cache Supabase or Lightspeed API
-  if(url.hostname.indexOf('supabase.co')>-1 ||
-     url.hostname.indexOf('lightspeedapp.com')>-1){
+  // Never cache the Lightspeed API
+  if(url.hostname.indexOf('lightspeedapp.com')>-1){
     e.respondWith(fetch(e.request).catch(function(){
       return new Response('{"error":"offline"}',{headers:{'Content-Type':'application/json'}});
     }));
