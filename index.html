@@ -377,6 +377,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div class="drawer-store-card">
           <div style="font-size:12px;font-weight:600;color:var(--text)" id="dh-store">Rockhampton</div>
           <div style="font-size:11px;color:var(--text2);margin-top:1px" id="dh-user">Staff</div>
+          <!-- Admin only: switch to / view as another staff member -->
+          <div id="switch-wrap" style="display:none;margin-top:8px">
+            <select id="switch-select" onchange="switchToStaff(this.value)" style="width:100%;font-size:12px;padding:6px 8px;border:0.5px solid var(--border);border-radius:8px;background:var(--card);color:var(--text)">
+              <option value="">⇄ Xem với tư cách…</option>
+            </select>
+          </div>
+          <div id="acting-bar" style="display:none;align-items:center;gap:6px;justify-content:space-between;margin-top:8px;background:var(--amber-bg);color:var(--amber-t);border-radius:8px;padding:6px 8px;font-size:11px">
+            <span id="acting-label"></span>
+            <button onclick="returnToAdmin()" style="border:none;background:var(--amber-t);color:#fff;border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">↩︎ Admin</button>
+          </div>
         </div>
       </div>
       <div class="nav-items">
@@ -1354,7 +1364,7 @@ window.SYNC = SYNC;
 // ════════════════════════════════════════════════════════════
 // VERSION AUTO-UPDATE  (must match version.json + sw.js CACHE_NAME)
 // ════════════════════════════════════════════════════════════
-var APP_VER = '1.0.1';
+var APP_VER = '1.0.3';
 var SW_REG = null;
 var UPDATE_PENDING = false;
 
@@ -1370,24 +1380,28 @@ function checkVersion() {
   fetch('version.json?_=' + Date.now(), { cache: 'no-store' })
     .then(function (r) { return r.json(); })
     .then(function (data) {
-      if (data && data.version && data.version !== APP_VER && !UPDATE_PENDING) {
+      if (data && data.version && data.version !== APP_VER) {
         UPDATE_PENDING = true;
         if (SW_REG) SW_REG.update().catch(function () {});
-        showUpdateBanner(data.version);
+        autoUpdate();
       }
     }).catch(function () {});
 }
 
-function showUpdateBanner(newVer) {
-  var b = document.getElementById('update-banner');
-  if (b) {
-    var sub = document.getElementById('update-banner-sub');
-    if (sub) sub.textContent = 'v' + APP_VER + ' → v' + newVer;
-    b.style.display = 'flex';
-  }
+// Don't reload while the user is typing (e.g. cashflow / order form) — wait until idle
+function busyTyping() {
+  var el = document.activeElement;
+  return !!(el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable));
+}
+
+function autoUpdate() {
+  if (!UPDATE_PENDING) return;
+  if (busyTyping()) return;          // retry on next check / when the input loses focus
+  applyUpdate();
 }
 
 function applyUpdate() {
+  if (typeof ovSpin === 'function') ovSpin('Đang cập nhật phiên bản mới…');
   var done = function () { window.location.reload(); };
   if (SW_REG && SW_REG.waiting) SW_REG.waiting.postMessage({ type: 'SKIP_WAITING' });
   if (navigator.serviceWorker && navigator.serviceWorker.controller) {
@@ -1404,11 +1418,12 @@ function applyUpdate() {
 }
 
 window.addEventListener('load', function () { setTimeout(checkVersion, 2000); });
-setInterval(checkVersion, 30000);
+setInterval(function () { UPDATE_PENDING ? autoUpdate() : checkVersion(); }, 30000);
 document.addEventListener('visibilitychange', function () {
-  if (document.visibilityState === 'visible') checkVersion();
+  if (document.visibilityState === 'visible') { UPDATE_PENDING ? autoUpdate() : checkVersion(); }
 });
-window.addEventListener('focus', checkVersion);
+window.addEventListener('focus', function () { UPDATE_PENDING ? autoUpdate() : checkVersion(); });
+document.addEventListener('blur', function () { if (UPDATE_PENDING) setTimeout(autoUpdate, 120); }, true);
 
 // Reload once when the new SW takes control
 if ('serviceWorker' in navigator) {
@@ -2134,9 +2149,26 @@ document.addEventListener('DOMContentLoaded', () => {
   updateClock();
   setInterval(updateClock, 10000);
   loadDemoDataIfEmpty();
-  if (typeof SHEETS !== 'undefined') SHEETS.restoreSession();
+  // Remember login: if a saved session exists, go straight to the app (no auto-logout)
+  if (restoreLogin()) return;
   showScreen('login');
 });
+
+// Restore a saved login. Returns true if it entered the app.
+function restoreLogin() {
+  try {
+    // LIVE mode — restore the Google Sheets session
+    if (typeof SHEETS !== 'undefined' && SHEETS.isConfigured()) {
+      const u = SHEETS.restoreSession();
+      if (u && u.name) { STATE.store = u.store || STATE.store; enterApp(); return true; }
+      return false;
+    }
+    // DEMO mode — restore the lightweight local session
+    const d = DB.get('lm_app_session');
+    if (d && d.store) { STATE.store = d.store; enterApp(); return true; }
+  } catch (e) {}
+  return false;
+}
 
 // ── CLOCK ────────────────────────────────────────────────────
 function updateClock() {
@@ -2158,7 +2190,10 @@ function showScreen(name) {
 // Also update logout to clear the Sheets session
 async function doLogout() {
   if (typeof SHEETS !== 'undefined' && SHEETS.user) { try { SHEETS.logout(); } catch (e) {} }
+  DB.set('lm_app_session', null);   // forget remembered login (explicit logout only)
   STATE.selectedStaff = null;
+  STATE.actingAs = null;
+  STATE.adminBackup = null;
   STATE.pin = '';
   showScreen('login');
 }
@@ -2263,10 +2298,21 @@ function enterApp() {
   // In demo mode (no Sheets URL), default role = admin so all tabs visible for testing.
   // In live mode, role comes from the authenticated staff record.
   const role = (SHEETS.user && SHEETS.user.role) || 'admin';
+  // Remember the real login identity (used by the admin account-switch feature)
+  STATE.loginName = user;
+  STATE.loginRole = role;
+  STATE.actingAs = null;
+  STATE.adminBackup = null;
+  const ab = document.getElementById('acting-bar'); if (ab) ab.style.display = 'none';
   document.getElementById('scan-store').textContent = STATE.store;
   document.getElementById('dh-store').textContent = STATE.store;
   document.getElementById('dh-user').textContent = user;
   applyRoleGating(role);
+  populateSwitchList();
+  // Remember login for next time (DEMO mode; LIVE mode persists via the SHEETS session)
+  if (!(typeof SHEETS !== 'undefined' && SHEETS.isConfigured())) {
+    DB.set('lm_app_session', { store: STATE.store, role: role, user: user });
+  }
   showScreen('app');
   switchTab('scan');
   loadSyncMeta();
@@ -3058,6 +3104,72 @@ function applyRoleGating(role) {
     const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
     userEl.textContent = roleLabel + ' · ' + name;
   }
+}
+
+// ════════════════════════════════════════════════════════════
+// ADMIN — switch to / view as another staff member, then return
+// ════════════════════════════════════════════════════════════
+function effectiveRole() {
+  return (typeof SHEETS !== 'undefined' && SHEETS.user && SHEETS.user.role) || STATE.loginRole || 'staff';
+}
+
+async function getStoreStaff() {
+  const store = STATE.store;
+  try {
+    if (typeof SHEETS !== 'undefined' && SHEETS.isConfigured()) return await SHEETS.getStaff(store);
+  } catch (e) {}
+  return getStaffList().filter(s => s.store === store);
+}
+
+// Build the dropdown — only for admins, only when not already acting as someone
+async function populateSwitchList() {
+  const wrap = document.getElementById('switch-wrap');
+  const sel = document.getElementById('switch-select');
+  if (!wrap || !sel) return;
+  if (effectiveRole() !== 'admin' || STATE.actingAs) { wrap.style.display = 'none'; return; }
+  let staff = await getStoreStaff();
+  const me = (SHEETS.user && SHEETS.user.name) || STATE.loginName;
+  staff = staff.filter(s => s.name !== me);
+  sel.innerHTML = '<option value="">⇄ Xem với tư cách…</option>' +
+    staff.map(s => `<option value="${s.id}">${s.name} (${s.role})</option>`).join('');
+  wrap.style.display = staff.length ? 'block' : 'none';
+}
+
+// Admin picks a staff → app acts as that user (UI + server-side role checks)
+async function switchToStaff(staffId) {
+  if (!staffId) return;
+  const staff = await getStoreStaff();
+  const target = staff.find(s => String(s.id) === String(staffId));
+  if (!target) return;
+  // Back up the real admin identity (once)
+  if (!STATE.adminBackup) {
+    STATE.adminBackup = (typeof SHEETS !== 'undefined' && SHEETS.user)
+      ? JSON.parse(JSON.stringify(SHEETS.user))
+      : { name: STATE.loginName, role: STATE.loginRole, store: STATE.store };
+  }
+  STATE.actingAs = { id: target.id, name: target.name, role: target.role, store: STATE.store, allowedMenus: target.allowedMenus || '' };
+  if (typeof SHEETS !== 'undefined') SHEETS.user = STATE.actingAs;
+  applyRoleGating(target.role);
+  document.getElementById('switch-wrap').style.display = 'none';
+  const bar = document.getElementById('acting-bar');
+  const lbl = document.getElementById('acting-label');
+  if (lbl) lbl.textContent = '👁 Đang xem: ' + target.name;
+  if (bar) bar.style.display = 'flex';
+  switchTab('scan');
+  if (typeof closeDrawer === 'function') closeDrawer();
+}
+
+// Return to the admin identity
+function returnToAdmin() {
+  const back = STATE.adminBackup || { name: STATE.loginName || 'Admin', role: 'admin', store: STATE.store };
+  if (typeof SHEETS !== 'undefined') SHEETS.user = back;
+  STATE.actingAs = null;
+  STATE.adminBackup = null;
+  const bar = document.getElementById('acting-bar'); if (bar) bar.style.display = 'none';
+  applyRoleGating(back.role || 'admin');
+  populateSwitchList();
+  switchTab('scan');
+  if (typeof closeDrawer === 'function') closeDrawer();
 }
 
 // ════════════════════════════════════════════════════════════
