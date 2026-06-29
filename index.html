@@ -380,7 +380,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <!-- Admin only: switch to / view as another staff member -->
           <div id="switch-wrap" style="display:none;margin-top:8px">
             <select id="switch-select" onchange="switchToStaff(this.value)" style="width:100%;font-size:12px;padding:6px 8px;border:0.5px solid var(--border);border-radius:8px;background:var(--card);color:var(--text)">
-              <option value="">⇄ Xem với tư cách…</option>
+              <option value="">⇄ View as…</option>
             </select>
           </div>
           <div id="acting-bar" style="display:none;align-items:center;gap:6px;justify-content:space-between;margin-top:8px;background:var(--amber-bg);color:var(--amber-t);border-radius:8px;padding:6px 8px;font-size:11px">
@@ -404,6 +404,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div class="nav-divider"></div>
         <button class="nav-item" onclick="doLogout()"><span class="nav-icon">🚪</span><span class="nav-lbl" style="color:var(--red)">Log out</span></button>
       </div>
+      <div id="app-ver-label" style="text-align:center;font-size:10px;color:var(--text3);padding:9px 0 11px;border-top:0.5px solid var(--border);flex-shrink:0">v1.0.3</div>
     </div>
 
     <!-- MAIN CONTENT -->
@@ -1401,7 +1402,7 @@ function autoUpdate() {
 }
 
 function applyUpdate() {
-  if (typeof ovSpin === 'function') ovSpin('Đang cập nhật phiên bản mới…');
+  if (typeof ovSpin === 'function') ovSpin('Updating to the latest version…');
   var done = function () { window.location.reload(); };
   if (SW_REG && SW_REG.waiting) SW_REG.waiting.postMessage({ type: 'SKIP_WAITING' });
   if (navigator.serviceWorker && navigator.serviceWorker.controller) {
@@ -1417,7 +1418,10 @@ function applyUpdate() {
   }
 }
 
-window.addEventListener('load', function () { setTimeout(checkVersion, 2000); });
+window.addEventListener('load', function () {
+  var vEl = document.getElementById('app-ver-label'); if (vEl) vEl.textContent = 'v' + APP_VER;
+  setTimeout(checkVersion, 2000);
+});
 setInterval(function () { UPDATE_PENDING ? autoUpdate() : checkVersion(); }, 30000);
 document.addEventListener('visibilitychange', function () {
   if (document.visibilityState === 'visible') { UPDATE_PENDING ? autoUpdate() : checkVersion(); }
@@ -3130,7 +3134,7 @@ async function populateSwitchList() {
   let staff = await getStoreStaff();
   const me = (SHEETS.user && SHEETS.user.name) || STATE.loginName;
   staff = staff.filter(s => s.name !== me);
-  sel.innerHTML = '<option value="">⇄ Xem với tư cách…</option>' +
+  sel.innerHTML = '<option value="">⇄ View as…</option>' +
     staff.map(s => `<option value="${s.id}">${s.name} (${s.role})</option>`).join('');
   wrap.style.display = staff.length ? 'block' : 'none';
 }
@@ -3153,7 +3157,7 @@ async function switchToStaff(staffId) {
   document.getElementById('switch-wrap').style.display = 'none';
   const bar = document.getElementById('acting-bar');
   const lbl = document.getElementById('acting-label');
-  if (lbl) lbl.textContent = '👁 Đang xem: ' + target.name;
+  if (lbl) lbl.textContent = '👁 Viewing as: ' + target.name;
   if (bar) bar.style.display = 'flex';
   switchTab('scan');
   if (typeof closeDrawer === 'function') closeDrawer();
