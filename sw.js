@@ -1,6 +1,6 @@
 // Lantern Mart Service Worker
 // QUAN TRỌNG: mỗi lần release, đổi số này khớp với version.json + APP_VER trong index.html
-const CACHE_NAME = 'ltm-v1.0.1';
+const CACHE_NAME = 'ltm-v1.1.0';
 const ASSETS = ['./', './index.html', './manifest.json',
   './icons/icon-192.png', './icons/icon-512.png'];
 
