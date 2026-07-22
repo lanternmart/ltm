@@ -1488,6 +1488,8 @@ function gp(id,title){
   var btn=g('bn-'+id); if(btn) btn.classList.add('active');
   g('page-title').textContent=title||PAGE_TITLES[id]||'';
   g('scroll-area').scrollTop=0;
+  sessionStorage.setItem('lm_page', id);
+  sessionStorage.setItem('lm_page_title', title||PAGE_TITLES[id]||'');
   if(id==='checkin') renderStaffDash();
   if(id==='orders') loadOrderSuggestions();
   if(id==='payroll') renderPayroll();
@@ -3312,7 +3314,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='10.2';
+var APP_VER='10.3';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -3783,7 +3785,6 @@ function renderPayroll(){
   // Payroll report: admin, or a mod who's been granted the Payroll tab (nav/gp already gate access)
   var canPayroll = (REAL_ADMIN&&REAL_ADMIN.role==='admin') || (U&&U.role==='admin') || (U&&U.role==='mod');
   if(!canPayroll) return;
-  tsInit();
   var pending=ATTENDANCE.filter(function(a){return (!a.status||a.status==='Pending'||a.status==='Requested')&&!!a.checkOut;});
   updatePayrollBadge(pending.length);
 
@@ -4885,6 +4886,12 @@ function switchAccount(username){
   // Land on the page appropriate for the VIEWED role (staff/mod → check-in, others → dashboard)
   if(U.role==='staff'||U.role==='mod') gp('checkin','Check In / Out');
   else gp('dash','Dashboard');
+  // Restore last viewed page after pull-to-refresh / reload
+  var savedPage=sessionStorage.getItem('lm_page');
+  var savedTitle=sessionStorage.getItem('lm_page_title');
+  if(savedPage && savedPage!=='dash' && savedPage!=='checkin'){
+    try{ gp(savedPage, savedTitle||''); }catch(e){}
+  }
   loadAll();
 }
 
