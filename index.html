@@ -1484,8 +1484,6 @@ function gp(id,title){
   var btn=g('bn-'+id); if(btn) btn.classList.add('active');
   g('page-title').textContent=title||PAGE_TITLES[id]||'';
   g('scroll-area').scrollTop=0;
-  sessionStorage.setItem('lm_page', id);
-  sessionStorage.setItem('lm_page_title', title||PAGE_TITLES[id]||'');
   if(id==='checkin') renderStaffDash();
   if(id==='orders') loadOrderSuggestions();
   if(id==='payroll') renderPayroll();
@@ -3299,7 +3297,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='10.4';
+var APP_VER='10.5';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4657,7 +4655,32 @@ function setSidebar(open){
   toggleSidebar();
 }
 
-// ── Pull-to-refresh: drag down from top of scroll area → reload app ──
+// ── Pull-to-refresh: re-fetch data and stay on current tab ──
+function ptrRefreshInPlace(){
+  var activeEl=document.querySelector('.page.on');
+  var activeId=activeEl?activeEl.id.replace('page-',''):'dash';
+  var p1=api('getInventory');
+  var p3=api('getAttendance',{username:((REAL_ADMIN&&REAL_ADMIN.role==='admin')||(U&&U.role==='mod'))?'':U.username});
+  var p4=api('getCategories');
+  return Promise.all([p1,p3,p4]).then(function(results){
+    var r1=results[0],r3=results[1],r4=results[2];
+    INV=(r1&&r1.ok&&r1.data)?r1.data:INV;
+    ATTENDANCE=(r3&&r3.ok&&r3.data)?r3.data.map(function(a){return Object.assign({},a,{date:safeDate(a.date)});}):ATTENDANCE;
+    if(r4&&r4.ok&&r4.data&&r4.data.length) CATEGORIES=r4.data;
+    try{localStorage.setItem('wr_inv',JSON.stringify(INV));localStorage.setItem('wr_att',JSON.stringify(ATTENDANCE));}catch(e){}
+    // Re-render active tab
+    if(activeId==='dash') renderDash();
+    else if(activeId==='inv') renderInv();
+    else if(activeId==='payroll') renderPayroll();
+    else if(activeId==='orders') loadOrderSuggestions();
+    else if(activeId==='checkin') renderStaffDash();
+    else if(activeId==='admin') renderAdmin();
+    else if(activeId==='picking'&&typeof initPickingPage==='function') initPickingPage();
+    else if(activeId==='receive'&&typeof initReceivePage==='function') initReceivePage();
+  }).catch(function(){});
+}
+
+// ── Pull-to-refresh: drag down from top of scroll area ──
 (function(){
   var sa=null, ind=null;
   var startY=0, pulling=false, dist=0;
@@ -4691,13 +4714,20 @@ function setSidebar(open){
     if(!pulling) return;
     pulling=false;
     if(dist>=TRIGGER){
-      // Trigger refresh — show 100% then spinner, then reload
+      // Trigger refresh — reload data, stay on current tab
       var pctEl=ind.querySelector('.ptr-pct');
       if(pctEl) pctEl.textContent='100%';
       ind.style.opacity='1';
       ind.style.transform='translateX(-50%) translateY(50px)';
       setTimeout(function(){ ind.classList.add('spinning'); }, 150);
-      setTimeout(function(){ window.location.reload(); }, 350);
+      setTimeout(function(){
+        // Re-fetch all data then re-render current page
+        ptrRefreshInPlace().then(function(){
+          ind.classList.remove('spinning');
+          ind.style.opacity='0';
+          ind.style.transform='translateX(-50%) translateY(-10px)';
+        });
+      }, 350);
     } else {
       // Snap back
       ind.style.opacity='0';
@@ -4871,12 +4901,6 @@ function switchAccount(username){
   // Land on the page appropriate for the VIEWED role (staff/mod → check-in, others → dashboard)
   if(U.role==='staff'||U.role==='mod') gp('checkin','Check In / Out');
   else gp('dash','Dashboard');
-  // Restore last viewed page after pull-to-refresh / reload
-  var savedPage=sessionStorage.getItem('lm_page');
-  var savedTitle=sessionStorage.getItem('lm_page_title');
-  if(savedPage && savedPage!=='dash' && savedPage!=='checkin'){
-    try{ gp(savedPage, savedTitle||''); }catch(e){}
-  }
   loadAll();
 }
 
