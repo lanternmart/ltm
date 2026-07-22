@@ -930,14 +930,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-s
             <option value="fulltime">Full-time</option>
             <option value="custom">Custom (flat — no loading)</option>
           </select>
-          <div style="font-size:11px;color:var(--text2);margin-top:4px">Picking a type auto-fills Timesheet Rate + Super/Sat/Sun/PH below. These are used by the <b>Timesheet Export only</b> — the internal payroll report always uses Hourly/Daily Rate, flat 1×, 0% super.</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:4px">Picking a type auto-fills the Super / Sat / Sun / PH penalty rates below (QLD).</div>
         </div>
-        <div class="fld"><label>Timesheet Rate ($/h — award, for exported timesheet)</label><input type="text" id="u-tsrate" value="0" inputmode="decimal"></div>
-        <div class="fld" id="u-weeklypay-wrap" style="display:none">
-          <label>Fixed Weekly Salary ($) — for Full-time timesheet</label>
-          <input type="text" id="u-weeklypay" value="0" inputmode="decimal">
-          <div style="font-size:10px;color:var(--text2);margin-top:3px">Full-time only: timesheet uses this fixed amount instead of attendance gross</div>
-        </div>
+
+
         <div class="fld-row">
           <div class="fld"><label>Hourly Rate ($)</label><input type="text" id="u-rate" value="0" inputmode="decimal"></div>
           <div class="fld"><label>Daily Rate ($)</label><input type="text" id="u-daily" value="0" inputmode="decimal"></div>
@@ -2227,7 +2223,7 @@ g && document.addEventListener('DOMContentLoaded',function(){
     if(v!==this.value) this.value=v;
   });
   // Same comma→dot fix for ALL payroll user fields (iPhone keyboards)
-  ['u-rate','u-daily','u-super','u-sat','u-sun','u-ph','u-tsrate','u-weeklypay'].forEach(function(id){
+  ['u-rate','u-daily','u-super','u-sat','u-sun','u-ph'].forEach(function(id){
     var inp=g(id); if(inp) inp.addEventListener('input',function(){
       var v=this.value.replace(/,/g,'.').replace(/[^0-9.]/g,'');
       var p=v.split('.'); if(p.length>2) v=p[0]+'.'+p.slice(1).join('');
@@ -3129,9 +3125,6 @@ function openAddUser(){
   setPinLen('u',4);
   g('u-rate').value='0';g('u-daily').value='0';g('u-super').value='0';g('u-sat').value='0';g('u-sun').value='0';g('u-ph').value='0';
   if(g('u-emptype')) g('u-emptype').value='casual';
-  if(g('u-tsrate')) g('u-tsrate').value='0';
-  if(g('u-weeklypay')) g('u-weeklypay').value='0';
-  var wp=g('u-weeklypay-wrap'); if(wp) wp.style.display='none';
   g('u-msg').innerHTML='';
   if(g('u-allowed-menus')) g('u-allowed-menus').value='';
   if(g('u-delete-btn')) g('u-delete-btn').style.display='none';
@@ -3159,9 +3152,6 @@ function openEditUser(username,fullname,role,hourlyRate,satRate,sunRate,phRate,s
   var uu=ADM_USERS.find(function(x){return x.username===username;});
   if(g('u-allowed-menus')) g('u-allowed-menus').value=(uu&&uu.allowedMenus)?uu.allowedMenus:'';
   if(g('u-emptype')) g('u-emptype').value=(uu&&uu.empType)?uu.empType:'casual';
-  if(g('u-tsrate')) g('u-tsrate').value=(uu&&uu.tsRate)?uu.tsRate:0;
-  if(g('u-weeklypay')) g('u-weeklypay').value=(uu&&uu.weeklyPay)?uu.weeklyPay:0;
-  var wpw=g('u-weeklypay-wrap'); if(wpw) wpw.style.display=((uu&&uu.empType)==='fulltime')?'block':'none';
   setPinLen('u', (uu&&uu.pinLen===6)?6:4);
   togglePayrollFields();
   // Show delete button — but not for the built-in admin or the current user
@@ -3184,18 +3174,15 @@ function deleteUserConfirm(){
 }
 // Auto-fill award multipliers when the employment type changes (MA000003, FY2026-27):
 // Sat 1.25x, Sun 1.5x, Public Holiday 2.25x, Super 12% (from 1 Jul 2026).
-// Custom = flat 1x, super 0. These feed the TIMESHEET only (internal payroll is always flat).
+// Custom = flat 1x, super 0.
 function empTypeApplyRates(){
   var t=g('u-emptype')?g('u-emptype').value:'';
   if(!t) return;
-  var wp=g('u-weeklypay-wrap'); if(wp) wp.style.display=(t==='fulltime')?'block':'none';
   if(t==='custom'){
-    if(g('u-tsrate')) g('u-tsrate').value=0;
     g('u-sat').value=0; g('u-sun').value=0; g('u-ph').value=0; g('u-super').value=0;
   } else {
     // MA000119 standard multipliers: Sat 1.25×, Sun 1.50×, PH 2.25×
     var base=(t==='casual')?34.76:27.81;
-    if(g('u-tsrate')) g('u-tsrate').value=base;
     g('u-sat').value=(base*1.25).toFixed(2);
     g('u-sun').value=(base*1.50).toFixed(2);
     g('u-ph').value=(base*2.25).toFixed(2);
@@ -3217,8 +3204,6 @@ function saveUser(){
   var sun=parsePrice(g('u-sun').value)||1.0;
   var ph=parsePrice(g('u-ph').value)||1.0;
   var empType=g('u-emptype')?g('u-emptype').value:'casual';
-  var tsRate=parsePrice(g('u-tsrate')?g('u-tsrate').value:'0');
-  var weeklyPay=parsePrice(g('u-weeklypay')?g('u-weeklypay').value:'0');
   // collect allowed menus if mod
   var allowedMenus='';
   if(role==='mod'){
@@ -3233,7 +3218,7 @@ function saveUser(){
   ov(isEdit?'Saving...':'Creating...');
   if(isEdit){
     var renaming = un && un!==String(id).toLowerCase();
-    api('updateUser',{username:id,newUsername:(renaming?un:''),password:pw,fullname:ht,role:role,actingUser:(REAL_ADMIN?REAL_ADMIN.username:U?U.username:''),hourlyRate:rate,satRate:sat,sunRate:sun,phRate:ph,superRate:superR,dailyRate:daily,allowedMenus:allowedMenus,empType:empType,tsRate:tsRate,weeklyPay:weeklyPay}).then(function(r){
+    api('updateUser',{username:id,newUsername:(renaming?un:''),password:pw,fullname:ht,role:role,actingUser:(REAL_ADMIN?REAL_ADMIN.username:U?U.username:''),hourlyRate:rate,satRate:sat,sunRate:sun,phRate:ph,superRate:superR,dailyRate:daily,allowedMenus:allowedMenus,empType:empType}).then(function(r){
       hov();if(!r.ok){showMsg('u-msg','err','❌ '+r.msg);return;}
       // If the admin renamed their own currently-logged-in account, update the local session
       if(renaming && U && String(U.username).toLowerCase()===String(id).toLowerCase()){
@@ -3245,7 +3230,7 @@ function saveUser(){
       cm('m-user');renderAdmin();
     });
   } else {
-    api('addUser',{username:un,password:pw,fullname:ht,role:role,actingUser:(REAL_ADMIN?REAL_ADMIN.username:U?U.username:''),hourlyRate:rate,satRate:sat,sunRate:sun,phRate:ph,superRate:superR,dailyRate:daily,allowedMenus:allowedMenus,empType:empType,tsRate:tsRate,weeklyPay:weeklyPay}).then(function(r){
+    api('addUser',{username:un,password:pw,fullname:ht,role:role,actingUser:(REAL_ADMIN?REAL_ADMIN.username:U?U.username:''),hourlyRate:rate,satRate:sat,sunRate:sun,phRate:ph,superRate:superR,dailyRate:daily,allowedMenus:allowedMenus,empType:empType}).then(function(r){
       hov();if(!r.ok){showMsg('u-msg','err','❌ '+r.msg);return;}
       ALL_USERS_CACHE=[];
       cm('m-user');renderAdmin();
@@ -3314,7 +3299,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='10.3';
+var APP_VER='10.4';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -3430,7 +3415,7 @@ var PAYROLL_CAL_OFFSET = 0; // 0=this month, -1=last month, etc.
 function getDayMult(dateStr, user){
   // INTERNAL payroll is flat by agreement: every day of the year pays 1x, no penalty loading.
   // Labels (Sat/Sun/PH) are kept for display only. The Sat/Sun/PH/Super rates in Edit User
-  // are used ONLY by the Timesheet Export (tsMult) for the accountant's reverse allocation.
+  // penalty multipliers for payroll.
   var d=safeNewDate(dateStr), dow=d.getDay();
   if(PH_QLD.indexOf(dateStr)>-1) return {m:1, label:'PH'};
   if(dow===6) return {m:1, label:'Sat'};
@@ -3490,7 +3475,7 @@ function renderStaffDash(){
   var satRate=parseFloat(uCache.satRate||U.satRate)||1;
   var sunRate=parseFloat(uCache.sunRate||U.sunRate)||1;
   var phRate=parseFloat(uCache.phRate||U.phRate)||1;
-  var superRate=0; // internal payroll: flat agreement, no super (award super only on exported timesheet)
+  var superRate=0; // internal payroll: flat agreement, no super 
   var uForCalc={hourlyRate:rate,dailyRate:dailyRate,satRate:satRate,sunRate:sunRate,phRate:phRate,superRate:superRate};
   var dm=getDayMult(today,uForCalc);
   var ciToday=safeTime(todayRec&&todayRec.checkIn?todayRec.checkIn:'');
@@ -3977,7 +3962,7 @@ function renderPayrollReportTable(){
       });
       var totalHrs=days.reduce(function(s,d){return s+d.hrs;},0);
       var totalGross=days.reduce(function(s,d){return s+d.gross;},0);
-      var totalSuper=0; // internal payroll: no super (timesheet-only)
+      var totalSuper=0; // internal payroll: no super
       var pendingCnt=ATTENDANCE.filter(function(a){
         return a.username===u.username&&a.date>=from&&a.date<=to&&
           (!a.status||a.status==='Pending'||a.status==='Requested')&&!!a.checkOut;
@@ -4257,7 +4242,7 @@ function renderPayrollDayDetail(){
     var hrs=co?calcHrsStr(ci,co):0;
     var dmi=getDayMult(rec.date,u);
     var gross=calcGross(hrs,u,dmi.m,rec.rateMode);
-    var super_=0; // internal payroll: no super (timesheet-only)
+    var super_=0; // internal payroll: no super
     // Always show actual times; add "(Daily rate)" badge when applicable
     var timeInfo=(ci?ci+' – '+(co||'in progress'):'—')+(hrs>0?' · '+hrs.toFixed(1)+' hrs':'');
     var rateBadge=shiftMode==='daily'?
@@ -4338,7 +4323,7 @@ function openAddShift(){
     '</div>'+
     '<div style="margin-bottom:14px">'+
       '<label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px">Note (optional)</label>'+
-      '<input type="text" id="as-note" placeholder="e.g. Added by admin — paper timesheet" style="display:block;box-sizing:border-box;width:100%;padding:8px 10px;border-radius:10px;border:1.5px solid var(--border);font-size:13px;font-family:inherit">'+
+      '<input type="text" id="as-note" placeholder="e.g. Added by admin — paper record" style="display:block;box-sizing:border-box;width:100%;padding:8px 10px;border-radius:10px;border:1.5px solid var(--border);font-size:13px;font-family:inherit">'+
     '</div>'+
     '<div style="padding:8px 12px;background:var(--green-bg);border-radius:10px;margin-bottom:14px;font-size:11px;color:var(--green);font-weight:600">'+
       '✓ Admin-added shifts are auto-approved immediately'+
