@@ -2,7 +2,7 @@
 // Update strategy: network-first for HTML/version so devices always get the latest;
 // only cache *successful* responses (never broken/partial ones) to avoid white screens.
 // The app also polls version.json and force-reloads (clearing caches) when the version changes.
-var CACHE_NAME = 'lanternmart-v10.5';
+var CACHE_NAME = 'lanternmart-v10.6';
 var APP_SHELL = ['./index.html','./manifest.json','./logo.png'];
 
 self.addEventListener('install', function(e){

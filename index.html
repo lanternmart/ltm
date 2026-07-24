@@ -548,6 +548,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-s
         <button class="snav-btn" id="bn-orders" onclick="gp('orders','Order Suggestions')"><span class="snav-icon">📋</span><span>Orders</span><span class="snav-badge-dot" id="orders-badge">0</span></button>
         <button class="snav-btn" id="bn-picking" onclick="gp('picking','Picking')"><span class="snav-icon">🛒</span><span>Picking</span><span class="snav-badge-dot" id="picking-badge" style="display:none">0</span></button>
         <button class="snav-btn" id="bn-payroll" onclick="gp('payroll','Payroll')" style="display:none"><span class="snav-icon">🗓</span><span>Payroll</span><span class="snav-badge-dot" id="payroll-badge">0</span></button>
+        <button class="snav-btn" id="bn-revenue" onclick="gp('revenue','Revenue')" style="display:none"><span class="snav-icon">💰</span><span>Revenue</span></button>
         <button class="snav-btn" id="bn-admin" onclick="gp('admin','Admin')" style="display:none"><span class="snav-icon">⚙️</span><span>Admin</span></button>
         <button class="snav-btn" id="bn-chpw" onclick="openChangePassword()" style="margin-top:auto"><span class="snav-icon">🔑</span><span>Passcode</span></button>
         <div id="app-version" style="padding:10px 14px;font-size:10px;color:var(--text3);font-weight:600;letter-spacing:.04em;border-top:1px solid var(--border)">v9.5</div>
@@ -774,6 +775,90 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-s
         <div id="payroll-cal" style="padding:8px 12px 12px"></div>
       </div>
       <div id="payroll-day-section" style="padding:0 0 12px"></div>
+    </div>
+
+    <!-- ── REVENUE (manual entry) ── -->
+    <div class="page" id="page-revenue">
+      <!-- Full calendar picker -->
+      <div class="scard" style="padding:12px 14px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <button onclick="revMonthNav(-1)" style="width:34px;height:34px;border-radius:10px;border:none;background:#f0f2f5;font-size:16px;cursor:pointer">◀</button>
+          <div style="font-size:14px;font-weight:700" id="rev-month-label">July 2026</div>
+          <button onclick="revMonthNav(1)" style="width:34px;height:34px;border-radius:10px;border:none;background:#f0f2f5;font-size:16px;cursor:pointer">▶</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:0;text-align:center">
+          <div style="font-size:10px;color:var(--text2);padding:4px 0;font-weight:600">Mo</div>
+          <div style="font-size:10px;color:var(--text2);padding:4px 0;font-weight:600">Tu</div>
+          <div style="font-size:10px;color:var(--text2);padding:4px 0;font-weight:600">We</div>
+          <div style="font-size:10px;color:var(--text2);padding:4px 0;font-weight:600">Th</div>
+          <div style="font-size:10px;color:var(--text2);padding:4px 0;font-weight:600">Fr</div>
+          <div style="font-size:10px;color:var(--text2);padding:4px 0;font-weight:600;color:var(--amber)">Sa</div>
+          <div style="font-size:10px;color:var(--text2);padding:4px 0;font-weight:600;color:var(--red)">Su</div>
+        </div>
+        <div id="rev-cal-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:0;text-align:center"></div>
+        <div style="margin-top:10px;display:flex;gap:8px;align-items:center;justify-content:space-between">
+          <div style="font-size:11px;color:var(--text2)" id="rev-range-label">Tap a date or select a range</div>
+          <div style="display:flex;gap:6px">
+            <button onclick="revSelectWeek()" style="padding:5px 10px;border-radius:8px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">This week</button>
+            <button onclick="revClearRange()" style="padding:5px 10px;border-radius:8px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary cards -->
+      <div id="rev-summary" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div class="scard" style="padding:12px 14px">
+            <div style="font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Net Sales</div>
+            <div id="rev-total" style="font-size:22px;font-weight:700;color:var(--green)">$0.00</div>
+            <div id="rev-wow" style="font-size:11px;font-weight:700;margin-top:3px"></div>
+          </div>
+          <div class="scard" style="padding:12px 14px">
+            <div style="font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Profit</div>
+            <div id="rev-profit" style="font-size:22px;font-weight:700">$0.00</div>
+            <div style="font-size:10px;color:var(--text2);margin-top:2px">sales − expenses − wages</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+          <div class="scard" style="padding:10px 12px">
+            <div style="font-size:9px;font-weight:600;color:var(--text2);text-transform:uppercase;margin-bottom:3px">Card</div>
+            <div id="rev-card" style="font-size:16px;font-weight:700">$0</div>
+          </div>
+          <div class="scard" style="padding:10px 12px">
+            <div style="font-size:9px;font-weight:600;color:var(--text2);text-transform:uppercase;margin-bottom:3px">Cash</div>
+            <div id="rev-cash" style="font-size:16px;font-weight:700;color:var(--amber)">$0</div>
+          </div>
+          <div class="scard" style="padding:10px 12px">
+            <div style="font-size:9px;font-weight:600;color:var(--text2);text-transform:uppercase;margin-bottom:3px">Wages</div>
+            <div id="rev-wages" style="font-size:16px;font-weight:700;color:var(--red)">$0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Daily breakdown — manual input -->
+      <div class="scard" style="margin-bottom:12px">
+        <div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;padding:10px 14px 6px;border-bottom:1px solid var(--border);background:var(--bg)">Daily breakdown (tap to enter)</div>
+        <div id="rev-days"></div>
+      </div>
+
+      <!-- Expenses -->
+      <div class="scard" style="margin-bottom:12px">
+        <div style="padding:10px 14px;border-bottom:1px solid var(--border);background:var(--bg);display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">💸 Expenses</span>
+          <button onclick="revAddExpense()" style="padding:4px 9px;border-radius:8px;border:none;background:var(--blue);color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">+ Add</button>
+        </div>
+        <div id="rev-expenses"></div>
+        <div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:12px;color:var(--text2)">Total expenses</span>
+          <span id="rev-exp-total" style="font-size:14px;font-weight:700;color:var(--red)">$0.00</span>
+        </div>
+      </div>
+
+      <!-- P&L -->
+      <div class="scard" style="margin-bottom:12px">
+        <div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;padding:10px 14px 6px;border-bottom:1px solid var(--border);background:var(--bg)">📊 P&L Summary</div>
+        <div id="rev-pnl"></div>
+      </div>
     </div>
 
     <!-- ── ADMIN ── -->
@@ -1459,7 +1544,7 @@ function quickRender(){
 }
 
 // ════ NAV ════
-var PAGE_TITLES={checkin:'Check In / Out',dash:'Dashboard',inv:'Inventory',orders:'Order Suggestions',picking:'Picking',ana:'Reports',admin:'Admin',payroll:'Payroll'};
+var PAGE_TITLES={checkin:'Check In / Out',dash:'Dashboard',inv:'Inventory',orders:'Order Suggestions',picking:'Picking',ana:'Reports',admin:'Admin',payroll:'Payroll',revenue:'Revenue'};
 function gp(id,title){
   var role=U?U.role:'';
   var realAdmin=REAL_ADMIN&&REAL_ADMIN.role==='admin';
@@ -1468,7 +1553,7 @@ function gp(id,title){
   // Dashboard overview: admin + mod + viewer (not plain staff)
   if(id==='dash' && role==='staff') return;
   // Admin-only / elevated pages
-  if((id==='admin'||id==='payroll'||id==='receive'||id==='inv'||id==='orders')){
+  if((id==='admin'||id==='payroll'||id==='revenue'||id==='receive'||id==='inv'||id==='orders')){
     var okAdmin = role==='admin' || realAdmin;
     var okMod = role==='mod' && id!=='admin' && modAllowed().indexOf(id)>-1;
     if(!okAdmin && !okMod) return;
@@ -1487,6 +1572,7 @@ function gp(id,title){
   if(id==='checkin') renderStaffDash();
   if(id==='orders') loadOrderSuggestions();
   if(id==='payroll') renderPayroll();
+  if(id==='revenue') initRevenuePage();
   if(id==='receive') initReceivePage();
   if(id==='picking') initPickingPage();
 }
@@ -3093,6 +3179,7 @@ var MOD_MENUS=[
   {id:'receive', label:'📥 Stock-In'},
   {id:'orders', label:'🛒 Order Suggestions'},
   {id:'picking', label:'📋 Picking'},
+  {id:'revenue', label:'💰 Revenue'},
   {id:'payroll', label:'🗓 Payroll'}
 ];
 function togglePayrollFields(){
@@ -3297,7 +3384,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='10.5';
+var APP_VER='10.6';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4655,6 +4742,268 @@ function setSidebar(open){
   toggleSidebar();
 }
 
+// ════════════════════════════════════════════════════
+// REVENUE MODULE — manual daily entry (card + cash)
+// Data stored in localStorage per date: lm_rev_YYYY-MM-DD = {card, cash}
+// Expenses stored per period key: lm_exp_FROM_TO = [{name, amount, id}]
+// ════════════════════════════════════════════════════
+var REV_CAL_MONTH=new Date().getMonth(), REV_CAL_YEAR=new Date().getFullYear();
+var REV_SEL_FROM=null, REV_SEL_TO=null; // selected date range (YYYY-MM-DD strings)
+var REV_PICKING=0; // 0=pick from, 1=pick to
+
+function initRevenuePage(){
+  revSelectWeek(); // default: this week
+}
+
+// ── Calendar ──
+function revMonthNav(dir){ REV_CAL_MONTH+=dir; if(REV_CAL_MONTH>11){REV_CAL_MONTH=0;REV_CAL_YEAR++;} if(REV_CAL_MONTH<0){REV_CAL_MONTH=11;REV_CAL_YEAR--;} revRenderCal(); }
+function revRenderCal(){
+  var ml=g('rev-month-label'); if(ml) ml.textContent=new Date(REV_CAL_YEAR,REV_CAL_MONTH).toLocaleDateString('en-AU',{month:'long',year:'numeric'});
+  var grid=g('rev-cal-grid'); if(!grid) return;
+  var first=new Date(REV_CAL_YEAR,REV_CAL_MONTH,1);
+  var dow=(first.getDay()+6)%7; // 0=Mon
+  var daysInMonth=new Date(REV_CAL_YEAR,REV_CAL_MONTH+1,0).getDate();
+  var today=localDateStr(new Date());
+  var html='';
+  for(var i=0;i<dow;i++) html+='<div style="padding:6px"></div>';
+  for(var d=1;d<=daysInMonth;d++){
+    var ds=REV_CAL_YEAR+'-'+String(REV_CAL_MONTH+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    var isToday=ds===today;
+    var inRange=REV_SEL_FROM&&REV_SEL_TO&&ds>=REV_SEL_FROM&&ds<=REV_SEL_TO;
+    var isEnd=ds===REV_SEL_FROM||ds===REV_SEL_TO;
+    var hasData=!!revGetDay(ds);
+    var bg=isEnd?'var(--blue)':inRange?'rgba(235,41,40,.12)':'transparent';
+    var col=isEnd?'#fff':isToday?'var(--blue)':'inherit';
+    var border=isToday&&!isEnd?'2px solid var(--blue)':'2px solid transparent';
+    var dot=hasData?'<div style="width:4px;height:4px;border-radius:50%;background:var(--green);margin:1px auto 0"></div>':'';
+    html+='<div onclick="revPickDate(\''+ds+'\')" style="padding:5px 0;cursor:pointer;border-radius:8px;background:'+bg+';color:'+col+';border:'+border+'">'+
+      '<div style="font-size:13px;font-weight:'+(isEnd?'700':'500')+'">'+d+'</div>'+dot+'</div>';
+  }
+  grid.innerHTML=html;
+  revUpdateRangeLabel();
+}
+function revPickDate(ds){
+  if(REV_PICKING===0){ REV_SEL_FROM=ds; REV_SEL_TO=ds; REV_PICKING=1; }
+  else { if(ds<REV_SEL_FROM){ REV_SEL_TO=REV_SEL_FROM; REV_SEL_FROM=ds; } else { REV_SEL_TO=ds; } REV_PICKING=0; revLoadRange(); }
+  revRenderCal();
+}
+function revSelectWeek(){
+  var t=new Date(); var dow=(t.getDay()+6)%7;
+  var mon=new Date(t); mon.setDate(mon.getDate()-dow);
+  var sun=new Date(mon); sun.setDate(sun.getDate()+6);
+  REV_SEL_FROM=localDateStr(mon); REV_SEL_TO=localDateStr(sun);
+  REV_CAL_MONTH=t.getMonth(); REV_CAL_YEAR=t.getFullYear();
+  REV_PICKING=0; revRenderCal(); revLoadRange();
+}
+function revClearRange(){ REV_SEL_FROM=null; REV_SEL_TO=null; REV_PICKING=0; revRenderCal();
+  if(g('rev-summary')) g('rev-summary').style.display='none';
+  if(g('rev-days')) g('rev-days').innerHTML='<div style="padding:20px;text-align:center;color:var(--text2);font-size:13px">Select a date or range on the calendar above</div>';
+}
+function revUpdateRangeLabel(){
+  var el=g('rev-range-label'); if(!el) return;
+  if(!REV_SEL_FROM){ el.textContent='Tap a date or select a range'; return; }
+  if(REV_PICKING===1){ el.textContent='Now tap the end date'; return; }
+  if(REV_SEL_FROM===REV_SEL_TO) el.textContent=revFmtShort(REV_SEL_FROM);
+  else el.textContent=revFmtShort(REV_SEL_FROM)+' → '+revFmtShort(REV_SEL_TO);
+}
+function revFmtShort(ds){ var d=safeNewDate(ds); return d.toLocaleDateString('en-AU',{day:'numeric',month:'short'}); }
+
+// ── Data access (localStorage) ──
+function revKey(ds){ return 'lm_rev_'+ds; }
+function revGetDay(ds){ try{ var s=localStorage.getItem(revKey(ds)); return s?JSON.parse(s):null; }catch(e){ return null; } }
+function revSetDay(ds, card, cash){ try{ localStorage.setItem(revKey(ds), JSON.stringify({card:card||0,cash:cash||0})); }catch(e){} }
+function revExpKey(){ return 'lm_exp_'+REV_SEL_FROM+'_'+REV_SEL_TO; }
+function revGetExp(){ try{ var s=localStorage.getItem(revExpKey()); return s?JSON.parse(s):[]; }catch(e){ return []; } }
+function revSetExp(arr){ try{ localStorage.setItem(revExpKey(), JSON.stringify(arr)); }catch(e){} }
+
+// ── Generate date list ──
+function revDateList(){
+  if(!REV_SEL_FROM||!REV_SEL_TO) return [];
+  var list=[], cur=new Date(REV_SEL_FROM+'T00:00:00');
+  var end=new Date(REV_SEL_TO+'T00:00:00');
+  while(cur<=end){ list.push(localDateStr(cur)); cur.setDate(cur.getDate()+1); }
+  return list;
+}
+
+// ── Load and render selected range ──
+function revLoadRange(){
+  if(!REV_SEL_FROM||!REV_SEL_TO) return;
+  var dates=revDateList();
+  var totCard=0, totCash=0;
+  var DAY=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  // Daily breakdown
+  var maxNet=0;
+  var rows=dates.map(function(ds){
+    var d=revGetDay(ds); var card=d?d.card:0; var cash=d?d.cash:0;
+    totCard+=card; totCash+=cash;
+    if(card+cash>maxNet) maxNet=card+cash;
+    return {ds:ds, card:card, cash:cash, total:card+cash};
+  });
+
+  g('rev-days').innerHTML=rows.map(function(r,idx){
+    var dt=safeNewDate(r.ds); var dn=DAY[dt.getDay()];
+    var pct=maxNet>0?Math.round(r.total/maxNet*100):0;
+    var isSat=dt.getDay()===6, isSun=dt.getDay()===0;
+    var dnCol=isSun?'var(--red)':isSat?'var(--amber)':'var(--text2)';
+    return '<div style="padding:10px 14px;border-bottom:1px solid var(--border)">'+
+      '<div style="display:flex;align-items:center;gap:10px">'+
+        '<div style="width:34px;text-align:center;flex-shrink:0">'+
+          '<div style="font-size:11px;color:'+dnCol+';font-weight:600">'+dn+'</div>'+
+          '<div style="font-size:14px;font-weight:700">'+dt.getDate()+'</div>'+
+          '<div style="font-size:10px;color:var(--text3)">'+dt.toLocaleDateString('en-AU',{month:'short'})+'</div>'+
+        '</div>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="display:flex;justify-content:space-between;margin-bottom:3px">'+
+            '<span style="font-size:11px;color:var(--text2)">Card '+revFmt(r.card)+' · Cash <span style="color:var(--amber)">'+revFmt(r.cash)+'</span></span>'+
+            '<span style="font-size:13px;font-weight:700;color:var(--green)">'+revFmt(r.total)+'</span>'+
+          '</div>'+
+          '<div style="height:4px;background:var(--bg);border-radius:3px;overflow:hidden">'+
+            '<div style="height:100%;background:var(--blue);border-radius:3px;width:'+pct+'%"></div>'+
+          '</div>'+
+        '</div>'+
+        '<button onclick="revEditDay(\''+r.ds+'\','+idx+')" style="padding:5px 9px;border-radius:8px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;cursor:pointer;flex-shrink:0">✏️</button>'+
+      '</div>'+
+      '<div id="rev-edit-'+idx+'" style="display:none;margin-top:8px;padding:10px;background:#f0f2f5;border-radius:10px">'+
+        '<div style="font-size:11px;color:var(--text2);margin-bottom:6px">Enter sales for '+dn+' '+dt.getDate()+'</div>'+
+        '<div style="display:flex;gap:8px">'+
+          '<div style="flex:1"><div style="font-size:10px;color:var(--text2);margin-bottom:3px">Card</div>'+
+            '<input type="number" step="0.01" id="rev-c-'+idx+'" value="'+(r.card||'')+'" placeholder="0.00" style="width:100%;box-sizing:border-box;padding:9px;border-radius:10px;border:none;background:#fff;font-size:15px;font-family:monospace"></div>'+
+          '<div style="flex:1"><div style="font-size:10px;color:var(--text2);margin-bottom:3px">Cash</div>'+
+            '<input type="number" step="0.01" id="rev-k-'+idx+'" value="'+(r.cash||'')+'" placeholder="0.00" style="width:100%;box-sizing:border-box;padding:9px;border-radius:10px;border:none;background:#fff;font-size:15px;font-family:monospace"></div>'+
+          '<button onclick="revSaveDay(\''+r.ds+'\','+idx+')" style="padding:9px 14px;border-radius:10px;border:none;background:var(--blue);color:#fff;font-size:13px;font-weight:700;cursor:pointer;align-self:flex-end">Save</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }).join('') || '<div style="padding:20px;text-align:center;color:var(--text2)">No dates selected</div>';
+
+  // Wages from attendance
+  var wages=revCalcWages(dates);
+
+  // Expenses
+  var expenses=revGetExp();
+  var totalExp=expenses.reduce(function(s,e){return s+(parseFloat(e.amount)||0);},0);
+
+  // Summary
+  var netSales=totCard+totCash;
+  var profit=netSales-totalExp-wages;
+  g('rev-summary').style.display='block';
+  g('rev-total').textContent=revFmt(netSales);
+  g('rev-card').textContent=revFmt(totCard);
+  g('rev-cash').textContent=revFmt(totCash);
+  g('rev-wages').textContent=revFmt(wages);
+  g('rev-profit').textContent=revFmt(profit);
+  g('rev-profit').style.color=profit>=0?'var(--green)':'var(--red)';
+
+  // WoW
+  revSetWow(netSales, dates);
+
+  // Expenses list
+  revRenderExpenses(expenses, totalExp);
+
+  // P&L
+  revRenderPnL(netSales, totCard, totCash, wages, totalExp, profit);
+}
+
+function revEditDay(ds,idx){
+  var el=g('rev-edit-'+idx); if(!el) return;
+  el.style.display=el.style.display==='none'?'block':'none';
+}
+function revSaveDay(ds,idx){
+  var card=parseFloat(g('rev-c-'+idx).value)||0;
+  var cash=parseFloat(g('rev-k-'+idx).value)||0;
+  revSetDay(ds,card,cash);
+  g('rev-edit-'+idx).style.display='none';
+  revRenderCal(); revLoadRange();
+}
+function revFmt(cents){
+  if(typeof cents==='number' && cents===Math.floor(cents) && Math.abs(cents)<100000) return '$'+cents.toFixed(2);
+  return '$'+(Number(cents)||0).toFixed(2);
+}
+
+// ── Wages from ATTENDANCE ──
+function revCalcWages(dates){
+  if(!ATTENDANCE||!ATTENDANCE.length) return 0;
+  var set={}; dates.forEach(function(ds){set[ds]=true;});
+  var total=0;
+  ATTENDANCE.forEach(function(a){
+    var ad=localDateStr(safeNewDate(a.date));
+    if(!set[ad]||!a.checkOut) return;
+    var hrs=parseFloat(a.hoursWorked)||0;
+    // find user rate
+    var rate=0;
+    if(ALL_USERS_CACHE&&ALL_USERS_CACHE.length){
+      var uu=ALL_USERS_CACHE.find(function(u){return u.username===a.username;});
+      if(uu) rate=parseFloat(uu.hourlyRate)||0;
+    }
+    total+=hrs*rate;
+  });
+  return Math.round(total*100)/100;
+}
+
+// ── WoW comparison ──
+function revSetWow(currentNet, dates){
+  var el=g('rev-wow'); if(!el) return;
+  if(dates.length===0){ el.textContent=''; return; }
+  var prevTotal=0;
+  dates.forEach(function(ds){
+    var prev=new Date(ds+'T00:00:00'); prev.setDate(prev.getDate()-7);
+    var pd=revGetDay(localDateStr(prev));
+    if(pd) prevTotal+=(pd.card||0)+(pd.cash||0);
+  });
+  if(prevTotal>0){
+    var pct=Math.round((currentNet-prevTotal)/prevTotal*100);
+    el.style.color=pct>=0?'var(--green)':'var(--red)';
+    el.textContent=(pct>=0?'▲ +':'▼ ')+pct+'% vs prev period';
+  } else el.textContent='';
+}
+
+// ── Expenses ──
+function revAddExpense(){
+  var name=prompt('Expense name (e.g. rent, supplies):');
+  if(!name) return;
+  var amount=prompt('Amount ($):');
+  if(!amount) return;
+  var exp=revGetExp();
+  exp.push({id:Date.now(), name:name, amount:parseFloat(amount)||0});
+  revSetExp(exp); revLoadRange();
+}
+function revDeleteExp(id){
+  var exp=revGetExp().filter(function(e){return e.id!==id;});
+  revSetExp(exp); revLoadRange();
+}
+function revRenderExpenses(expenses, totalExp){
+  var el=g('rev-expenses'); if(!el) return;
+  el.innerHTML=expenses.map(function(e){
+    return '<div style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
+      '<span style="font-size:13px">'+e.name+'</span>'+
+      '<div style="display:flex;align-items:center;gap:8px">'+
+        '<span style="font-size:13px;font-weight:600;color:var(--red)">-'+revFmt(e.amount)+'</span>'+
+        '<button onclick="revDeleteExp('+e.id+')" style="padding:2px 8px;border-radius:6px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;cursor:pointer">✕</button>'+
+      '</div></div>';
+  }).join('') || '<div style="padding:12px 14px;font-size:12px;color:var(--text2)">No expenses added</div>';
+  g('rev-exp-total').textContent='-'+revFmt(totalExp);
+}
+
+// ── P&L ──
+function revRenderPnL(net, card, cash, wages, expenses, profit){
+  var el=g('rev-pnl'); if(!el) return;
+  function row(label,val,col,bold){
+    return '<div style="display:flex;justify-content:space-between;padding:8px 14px;border-bottom:1px solid var(--border);'+(bold?'font-weight:700;font-size:15px':'font-size:13px')+'">'+
+      '<span>'+label+'</span><span style="color:'+(col||'inherit')+'">'+revFmt(val)+'</span></div>';
+  }
+  el.innerHTML=
+    row('💳 Card sales', card, 'var(--green)', false)+
+    row('💵 Cash sales', cash, 'var(--amber)', false)+
+    row('Net sales', net, 'var(--green)', true)+
+    '<div style="height:1px;background:var(--border)"></div>'+
+    row('👷 Wages', wages, 'var(--red)', false)+
+    row('💸 Expenses', expenses, 'var(--red)', false)+
+    row('Total costs', wages+expenses, 'var(--red)', true)+
+    '<div style="height:1px;background:var(--border)"></div>'+
+    row(profit>=0?'✅ Profit':'❌ Loss', profit, profit>=0?'var(--green)':'var(--red)', true);
+}
+
 // ── Pull-to-refresh: re-fetch data and stay on current tab ──
 function ptrRefreshInPlace(){
   var activeEl=document.querySelector('.page.on');
@@ -4672,6 +5021,7 @@ function ptrRefreshInPlace(){
     if(activeId==='dash') renderDash();
     else if(activeId==='inv') renderInv();
     else if(activeId==='payroll') renderPayroll();
+    else if(activeId==='revenue') revLoadRange();
     else if(activeId==='orders') loadOrderSuggestions();
     else if(activeId==='checkin') renderStaffDash();
     else if(activeId==='admin') renderAdmin();
@@ -4836,6 +5186,7 @@ function updateNavForRole(role){
   showElevated('bn-receive','receive');
   showElevated('bn-orders','orders');
   showElevated('bn-payroll','payroll');
+  showElevated('bn-revenue','revenue');
   // Picking: admin always; mod if granted; staff/viewer never
   var bp=g('bn-picking');
   if(bp){
