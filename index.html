@@ -552,7 +552,7 @@ input[type="date"],input[type="time"]{-webkit-appearance:none;appearance:none;ma
         <button class="snav-btn" id="bn-revenue" onclick="gp('revenue','Revenue')" style="display:none"><span class="snav-icon">💰</span><span>Revenue</span></button>
         <button class="snav-btn" id="bn-admin" onclick="gp('admin','Admin')" style="display:none"><span class="snav-icon">⚙️</span><span>Admin</span></button>
         <button class="snav-btn" id="bn-chpw" onclick="openChangePassword()" style="margin-top:auto"><span class="snav-icon">🔑</span><span>Passcode</span></button>
-        <div id="app-version" style="padding:10px 14px;font-size:10px;color:var(--text3);font-weight:600;letter-spacing:.04em;border-top:1px solid var(--border)">v9.5</div>
+        <div id="app-version" style="padding:10px 14px;font-size:10px;color:var(--text3);font-weight:600;letter-spacing:.04em;border-top:1px solid var(--border)"></div>
       </div>
     </div>
     <button id="sidebar-toggle" onclick="toggleSidebar()" title="Toggle menu">‹</button>
@@ -3424,7 +3424,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.0.0';
+var APP_VER='1.0.1';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -5308,6 +5308,8 @@ function switchAccount(username){
   // Land on the page appropriate for the VIEWED role (staff/mod → check-in, others → dashboard)
   if(U.role==='staff'||U.role==='mod') gp('checkin','Check In / Out');
   else gp('dash','Dashboard');
+  // Set version label
+  var vEl=g('app-version'); if(vEl) vEl.textContent='v'+APP_VER;
   loadAll();
 }
 
