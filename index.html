@@ -1056,8 +1056,8 @@ input[type="date"],input[type="time"]{-webkit-appearance:none;appearance:none;ma
         <div class="fld-row">
           <div class="fld"><label>Hourly Rate ($)</label><input type="text" id="u-rate" value="0" inputmode="decimal"></div>
           <div class="fld"><label>Daily Rate ($)</label><input type="text" id="u-daily" value="0" inputmode="decimal"></div>
-          <div class="fld"><label>Bank Transfer Hours / week</label><input type="text" id="u-bankhrs" value="0" inputmode="decimal">
-            <div style="font-size:10px;color:var(--text2);margin-top:3px">Hours paid by bank. Remaining hours are paid in cash.</div>
+          <div class="fld"><label>Bank Transfer Amount ($/week)</label><input type="text" id="u-bankhrs" value="0" inputmode="decimal">
+            <div style="font-size:10px;color:var(--text2);margin-top:3px">Dollar amount transferred to bank per week. The rest of wages is paid in cash.</div>
           </div>
         </div>
         <div class="fld-row">
@@ -3266,7 +3266,7 @@ function openEditUser(username,fullname,role,hourlyRate,satRate,sunRate,phRate,s
   g('u-pw-label').textContent='New Passcode (leave blank to keep current)';
   g('u-rate').value=hourlyRate||0;
   g('u-daily').value=dailyRate||0;
-  if(g('u-bankhrs')) g('u-bankhrs').value=(uu&&uu.bankHours)?uu.bankHours:0;
+  if(g('u-bankhrs')) g('u-bankhrs').value=(uu&&uu.bankAmount)?uu.bankAmount:0;
   g('u-super').value=superRate!==undefined&&superRate!==''?superRate:11.5;
   g('u-sat').value=satRate||1.25;
   g('u-sun').value=sunRate||1.5;
@@ -3328,7 +3328,7 @@ function saveUser(){
   var sun=parsePrice(g('u-sun').value)||1.0;
   var ph=parsePrice(g('u-ph').value)||1.0;
   var empType=g('u-emptype')?g('u-emptype').value:'casual';
-  var bankHours=g('u-bankhrs')?g('u-bankhrs').value:'0';
+  var bankAmount=g('u-bankhrs')?g('u-bankhrs').value:'0';
   // collect allowed menus if mod
   var allowedMenus='';
   if(role==='mod'){
@@ -3343,7 +3343,7 @@ function saveUser(){
   ov(isEdit?'Saving...':'Creating...');
   if(isEdit){
     var renaming = un && un!==String(id).toLowerCase();
-    api('updateUser',{username:id,newUsername:(renaming?un:''),password:pw,fullname:ht,role:role,actingUser:(REAL_ADMIN?REAL_ADMIN.username:U?U.username:''),hourlyRate:rate,satRate:sat,sunRate:sun,phRate:ph,superRate:superR,dailyRate:daily,allowedMenus:allowedMenus,empType:empType,bankHours:bankHours}).then(function(r){
+    api('updateUser',{username:id,newUsername:(renaming?un:''),password:pw,fullname:ht,role:role,actingUser:(REAL_ADMIN?REAL_ADMIN.username:U?U.username:''),hourlyRate:rate,satRate:sat,sunRate:sun,phRate:ph,superRate:superR,dailyRate:daily,allowedMenus:allowedMenus,empType:empType,bankAmount:bankAmount}).then(function(r){
       hov();if(!r.ok){showMsg('u-msg','err','❌ '+r.msg);return;}
       // If the admin renamed their own currently-logged-in account, update the local session
       if(renaming && U && String(U.username).toLowerCase()===String(id).toLowerCase()){
@@ -3355,7 +3355,7 @@ function saveUser(){
       cm('m-user');renderAdmin();
     });
   } else {
-    api('addUser',{username:un,password:pw,fullname:ht,role:role,actingUser:(REAL_ADMIN?REAL_ADMIN.username:U?U.username:''),hourlyRate:rate,satRate:sat,sunRate:sun,phRate:ph,superRate:superR,dailyRate:daily,allowedMenus:allowedMenus,empType:empType,bankHours:bankHours}).then(function(r){
+    api('addUser',{username:un,password:pw,fullname:ht,role:role,actingUser:(REAL_ADMIN?REAL_ADMIN.username:U?U.username:''),hourlyRate:rate,satRate:sat,sunRate:sun,phRate:ph,superRate:superR,dailyRate:daily,allowedMenus:allowedMenus,empType:empType,bankAmount:bankAmount}).then(function(r){
       hov();if(!r.ok){showMsg('u-msg','err','❌ '+r.msg);return;}
       ALL_USERS_CACHE=[];
       cm('m-user');renderAdmin();
@@ -3424,7 +3424,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.0.8';
+var APP_VER='1.0.9';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4914,13 +4914,16 @@ function revRenderUI(){
   var totalBal=remainBal+totCash-vegeTotal-w.cash-expTotal;
   revSetBalance(REV_SEL_TO,totalBal);
   g('rev-summary').style.display='block';
-  g('rev-total').textContent=revFmt(netSales);
+  g('rev-total').innerHTML=revFmt(netSales)+totalWowHtml;
   g('rev-card').textContent=revFmt(totRev);
   g('rev-cash').textContent=revFmt(totCash);
   if(g('rev-cardcalc'))g('rev-cardcalc').textContent=revFmt(totCard);
   g('rev-wages').textContent=revFmt(w.total);
   var profit=netSales-expTotal-vegeTotal-w.total;
   g('rev-profit').textContent=revFmt(profit);g('rev-profit').style.color=profit>=0?'var(--green)':'var(--red)';
+  // Prev week total for WoW on total row
+  var prevWeekTotal=0;dates.forEach(function(ds){var pd=new Date(ds+'T00:00:00');pd.setDate(pd.getDate()-7);var prev=revGetDay(localDateStr(pd));if(prev)prevWeekTotal+=(prev.rev!==undefined?prev.rev:(prev.card||0)+(prev.cash||0));});
+  var totalWowHtml='';if(prevWeekTotal>0){var twp=Math.round((netSales-prevWeekTotal)/prevWeekTotal*100);totalWowHtml=' <span style="font-size:11px;color:'+(twp>=0?'var(--green)':'var(--red)')+';font-weight:700">'+(twp>=0?'\u25B2 +':'\u25BC ')+twp+'% vs prev wk</span>';}
   revSetWow(netSales,dates);
   revRenderCashflow(remainBal,totCash,vegeTotal,w.cash,expTotal,totalBal);
   revRenderPnL(netSales,totRev,totCash,totCard,w.total,w.bank,w.cash,expTotal,vegeTotal,profit,remainBal,totalBal);
@@ -4941,7 +4944,7 @@ function revCalcWagesDetailed(dates){
   var set={};dates.forEach(function(ds){set[ds]=true;});var byUser={};
   ATTENDANCE.forEach(function(a){var ad=localDateStr(safeNewDate(a.date));if(!set[ad]||!a.checkOut)return;var hrs=parseFloat(a.hoursWorked)||0;if(!byUser[a.username])byUser[a.username]={hrs:0,rate:0,bankHrs:0,name:a.username};byUser[a.username].hrs+=hrs;});
   var total=0,bank=0,lines=[];
-  if(ALL_USERS_CACHE&&ALL_USERS_CACHE.length){ALL_USERS_CACHE.forEach(function(uu){var bu=byUser[uu.username];if(!bu)return;bu.rate=parseFloat(uu.hourlyRate)||0;bu.bankHrs=parseFloat(uu.bankHours)||0;bu.name=uu.fullname||uu.username;var gross=bu.hrs*bu.rate;var bankPay=Math.min(bu.bankHrs,bu.hrs)*bu.rate;total+=gross;bank+=bankPay;lines.push({name:bu.name,hrs:bu.hrs,rate:bu.rate,gross:gross,bankPay:bankPay,cashPay:gross-bankPay,bankHrs:bu.bankHrs});});}
+  if(ALL_USERS_CACHE&&ALL_USERS_CACHE.length){ALL_USERS_CACHE.forEach(function(uu){var bu=byUser[uu.username];if(!bu)return;bu.rate=parseFloat(uu.hourlyRate)||0;bu.bankAmt=parseFloat(uu.bankAmount)||0;bu.name=uu.fullname||uu.username;var gross=bu.hrs*bu.rate;var bankPay=Math.min(bu.bankAmt,gross);total+=gross;bank+=bankPay;lines.push({name:bu.name,hrs:bu.hrs,rate:bu.rate,gross:gross,bankPay:bankPay,cashPay:gross-bankPay,bankAmt:bu.bankAmt});});}
   return{total:Math.round(total*100)/100,bank:Math.round(bank*100)/100,cash:Math.round((total-bank)*100)/100,lines:lines};
 }
 function revSetWow(cur,dates){var el=g('rev-wow');if(!el)return;if(!dates.length){el.textContent='';return;}var prev=0;dates.forEach(function(ds){var d=new Date(ds+'T00:00:00');d.setDate(d.getDate()-7);var pd=revGetDay(localDateStr(d));if(pd)prev+=(pd.rev!==undefined?pd.rev:(pd.card||0)+(pd.cash||0));});if(prev>0){var p=Math.round((cur-prev)/prev*100);el.style.color=p>=0?'var(--green)':'var(--red)';el.textContent=(p>=0?'\u25B2 +':'\u25BC ')+p+'% vs prev';}else el.textContent='';}
@@ -5011,7 +5014,7 @@ function revBuildPayrollGrid(dates,w){
     var cells=dates.map(function(ds){var d=ud[ds];return d?d:{hrs:0,pay:0};});
     // calc pay per day
     cells=cells.map(function(c){return{hrs:c.hrs,pay:c.hrs*l.rate};});
-    rows.push({name:l.name,rate:l.rate,bankHrs:l.bankHrs,cells:cells,gross:l.gross,bankPay:l.bankPay,cashPay:l.cashPay});
+    rows.push({name:l.name,rate:l.rate,bankAmt:l.bankAmt,cells:cells,gross:l.gross,bankPay:l.bankPay,cashPay:l.cashPay});
   });}
   var html='<table style="font-size:10px"><tr><th style="text-align:left">Staff</th>';
   dates.forEach(function(ds){var dt=safeNewDate(ds);var dn=DAY[dt.getDay()];var isSat=dt.getDay()===6,isSun=dt.getDay()===0;
@@ -5054,7 +5057,7 @@ function revBuildReportHTML(){
   return '<div style="text-align:center;margin-bottom:14px"><div style="font-size:22px;font-weight:800;color:#eb2928;letter-spacing:.08em">LANTERN MART ROCKHAMPTON</div><div style="font-size:17px;font-weight:700;margin-top:2px">REPORT WEEK '+wk+'</div><div style="font-size:11px;color:#666;margin-top:4px">'+REV_SEL_FROM+' to '+REV_SEL_TO+'</div></div>'+
     '<h2 style="font-size:13px;margin:16px 0 6px;border-bottom:2px solid #eb2928;padding-bottom:4px">DAILY SALES</h2>'+
     '<table style="width:100%;border-collapse:collapse;font-size:11px"><tr><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:left">Day</th><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:right">Revenue</th><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:right">Cash</th><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:right">Card</th><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:center">vs Prev</th></tr>'+
-    dayRows+'<tr style="background:#fef3f2;font-weight:700"><td style="padding:5px 6px;border:1px solid #ddd">TOTAL</td><td style="padding:5px 6px;border:1px solid #ddd;text-align:right">'+revFmt(totRev)+'</td><td style="padding:5px 6px;border:1px solid #ddd;text-align:right">'+revFmt(totCash)+'</td><td style="padding:5px 6px;border:1px solid #ddd;text-align:right">'+revFmt(totCard)+'</td><td style="padding:5px 6px;border:1px solid #ddd"></td></tr></table>'+
+    dayRows+'<tr style="background:#fef3f2;font-weight:700"><td style="padding:5px 6px;border:1px solid #ddd">TOTAL</td><td style="padding:5px 6px;border:1px solid #ddd;text-align:right">'+revFmt(totRev)+'</td><td style="padding:5px 6px;border:1px solid #ddd;text-align:right">'+revFmt(totCash)+'</td><td style="padding:5px 6px;border:1px solid #ddd;text-align:right">'+revFmt(totCard)+'</td><td style="padding:5px 6px;border:1px solid #ddd;text-align:center">'+(function(){var pt=0;dates.forEach(function(ds){var pd=new Date(ds+"T00:00:00");pd.setDate(pd.getDate()-7);var prev=revGetDay(localDateStr(pd));if(prev)pt+=(prev.rev!==undefined?prev.rev:(prev.card||0)+(prev.cash||0));});if(pt>0){var p=Math.round((totRev-pt)/pt*100);return '<span style="color:'+(p>=0?'green':'red')+';font-weight:700">'+(p>=0?'+':'')+p+'%</span>';}return '';})()+'</td></tr></table>'+
     '<h2 style="font-size:13px;margin:16px 0 6px;border-bottom:2px solid #eb2928;padding-bottom:4px">PAYROLL</h2>'+
     revBuildPayrollGrid(dates,w)+
     '<h2 style="font-size:13px;margin:16px 0 6px;border-bottom:2px solid #eb2928;padding-bottom:4px">VEGE PETTY CASH ($'+VEGE_BUDGET+')</h2>'+
