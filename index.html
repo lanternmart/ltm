@@ -3424,7 +3424,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.0.3';
+var APP_VER='1.0.4';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4842,12 +4842,18 @@ async function revFetchRange(){
       api('getCashFlowBalance',{weekEnd:revPrevWeekEnd()}),
       api('getRevenueData',{dateFrom:localDateStr(prevMon),dateTo:localDateStr(prevSun)})
     ]);
-    REV_CACHE.days={};
-    if(results[0]&&results[0].data) results[0].data.forEach(function(d){REV_CACHE.days[d.date]={rev:d.rev,cash:d.cash};});
-    if(results[4]&&results[4].data) results[4].data.forEach(function(d){REV_CACHE.days[d.date]={rev:d.rev,cash:d.cash};});
-    REV_CACHE.exp=(results[1]&&results[1].data)||[];
-    REV_CACHE.vege=(results[2]&&results[2].data)||[];
-    REV_CACHE.bal[revPrevWeekEnd()]=(results[3]&&results[3].balance)||0;
+    // Only overwrite cache if API returned real data (preserve local edits on failure)
+    if(results[0]&&results[0].ok&&results[0].data){
+      var newDays={};
+      // Keep prev-week data already in cache
+      Object.keys(REV_CACHE.days).forEach(function(k){if(k<REV_SEL_FROM)newDays[k]=REV_CACHE.days[k];});
+      results[0].data.forEach(function(d){newDays[d.date]={rev:d.rev,cash:d.cash};});
+      if(results[4]&&results[4].data) results[4].data.forEach(function(d){newDays[d.date]={rev:d.rev,cash:d.cash};});
+      REV_CACHE.days=newDays;
+    }
+    if(results[1]&&results[1].ok) REV_CACHE.exp=results[1].data||[];
+    if(results[2]&&results[2].ok) REV_CACHE.vege=results[2].data||[];
+    if(results[3]&&results[3].ok) REV_CACHE.bal[revPrevWeekEnd()]=results[3].balance||0;
   }catch(e){console.error('revFetchRange',e);}
 }
 function revDateList(){if(!REV_SEL_FROM||!REV_SEL_TO)return[];var l=[],c=new Date(REV_SEL_FROM+'T00:00:00'),e=new Date(REV_SEL_TO+'T00:00:00');while(c<=e){l.push(localDateStr(c));c.setDate(c.getDate()+1);}return l;}
@@ -4906,8 +4912,8 @@ async function revSaveDay(ds,idx){
   var rev=parseFloat(g('rev-c-'+idx).value)||0,cash=parseFloat(g('rev-k-'+idx).value)||0;
   REV_CACHE.days[ds]={rev:rev,cash:cash};
   g('rev-edit-'+idx).style.display='none';
-  revRenderCal(); revRenderUI(); // instant render from cache
-  api('setRevenueDay',{date:ds,rev:rev,cash:cash}); // save to Sheet in background
+  revRenderCal(); revRenderUI();
+  await api('setRevenueDay',{date:ds,rev:rev,cash:cash}); // wait for Sheet to confirm
 }
 function revFmt(n){return '$'+(Number(n)||0).toFixed(2);}
 
