@@ -3424,7 +3424,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.0.6';
+var APP_VER='1.0.7';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4926,12 +4926,12 @@ function revRenderUI(){
   revRenderPnL(netSales,totRev,totCash,totCard,w.total,w.bank,w.cash,expTotal,vegeTotal,profit,remainBal,totalBal);
 }
 function revEditDay(ds,idx){var el=g('rev-edit-'+idx);if(el)el.style.display=el.style.display==='none'?'block':'none';}
-async function revSaveDay(ds,idx){
+function revSaveDay(ds,idx){
   var rev=parseFloat(g('rev-c-'+idx).value)||0,cash=parseFloat(g('rev-k-'+idx).value)||0;
   REV_CACHE.days[ds]={rev:rev,cash:cash};
   g('rev-edit-'+idx).style.display='none';
-  revRenderCal(); revRenderUI();
-  await api('setRevenueDay',{date:ds,rev:rev,cash:cash}); // wait for Sheet to confirm
+  revRenderCal();revRenderUI();
+  api('setRevenueDay',{date:ds,rev:rev,cash:cash});
 }
 function revFmt(n){return '$'+(Number(n)||0).toFixed(2);}
 
@@ -4948,19 +4948,19 @@ function revSetWow(cur,dates){var el=g('rev-wow');if(!el)return;if(!dates.length
 
 // ── Vege Petty Cash ──
 function revToggleVegeForm(){var f=g('rev-vege-form');if(!f)return;f.style.display=f.style.display==='none'?'block':'none';if(f.style.display==='block'&&g('rv-date'))g('rv-date').value=localDateStr(new Date());}
-async function revSaveVege(){var date=g('rv-date').value,sup=g('rv-sup').value||'Ms. Hang',amt=parseFloat(g('rv-amt').value)||0;if(!date||!amt){alert('Enter date and amount');return;}var r=await api('addVegePettyCash',{weekFrom:REV_WEEK_FROM,weekTo:REV_WEEK_TO,date:date,supplier:sup,amount:amt});if(r&&r.ok)REV_CACHE.vege.push({id:r.id||String(Date.now()),date:date,supplier:sup,amount:amt});g('rv-amt').value='';g('rev-vege-form').style.display='none';revRenderUI();}
-async function revDelVege(id){REV_CACHE.vege=REV_CACHE.vege.filter(function(v){return String(v.id)!==String(id);});revRenderUI();api('deleteVegePettyCash',{id:String(id)});}
+function revSaveVege(){var date=g('rv-date').value,sup=g('rv-sup').value||'Ms. Hang',amt=parseFloat(g('rv-amt').value)||0;if(!date||!amt){alert('Enter date and amount');return;}var tmpId='veg_'+Date.now();REV_CACHE.vege.push({id:tmpId,date:date,supplier:sup,amount:amt});g('rv-amt').value='';g('rev-vege-form').style.display='none';revRenderUI();api('addVegePettyCash',{weekFrom:REV_WEEK_FROM,weekTo:REV_WEEK_TO,date:date,supplier:sup,amount:amt});}
+function revDelVege(id){REV_CACHE.vege=REV_CACHE.vege.filter(function(v){return String(v.id)!==String(id);});revRenderUI();api('deleteVegePettyCash',{id:String(id)});}
 function revRenderVege(list,total){var el=g('rev-vege-list');if(!el)return;el.innerHTML=list.map(function(v){var d=v.date.length>7?safeNewDate(v.date).toLocaleDateString('en-AU',{day:'numeric',month:'short'}):v.date;return '<div style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px">'+d+' · '+v.supplier+'</span><div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:600">'+revFmt(v.amount)+'</span><button onclick="revDelVege('+v.id+')" style="padding:2px 8px;border-radius:6px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;cursor:pointer">\u2715</button></div></div>';}).join('')||'<div style="padding:12px 14px;font-size:12px;color:var(--text2)">No purchases yet</div>';g('rev-vege-total').textContent=revFmt(total);g('rev-vege-topup').textContent=revFmt(total)+' top-up';}
 
 // ── Cash Expenses ──
-async function revAddExpense(){var n=prompt('Expense name:');if(!n)return;var a=prompt('Amount ($):');if(!a)return;var r=await api('addCashExpense',{weekFrom:REV_WEEK_FROM,weekTo:REV_WEEK_TO,name:n,amount:parseFloat(a)||0});if(r&&r.ok)REV_CACHE.exp.push({id:r.id||String(Date.now()),name:n,amount:parseFloat(a)||0});revRenderUI();}
-async function revDeleteExp(id){REV_CACHE.exp=REV_CACHE.exp.filter(function(e){return String(e.id)!==String(id);});revRenderUI();api('deleteCashExpense',{id:String(id)});}
+function revAddExpense(){var n=prompt('Expense name:');if(!n)return;var a=prompt('Amount ($):');if(!a)return;REV_CACHE.exp.push({id:'exp_'+Date.now(),name:n,amount:parseFloat(a)||0});revRenderUI();api('addCashExpense',{weekFrom:REV_WEEK_FROM,weekTo:REV_WEEK_TO,name:n,amount:parseFloat(a)||0});}
+function revDeleteExp(id){REV_CACHE.exp=REV_CACHE.exp.filter(function(e){return String(e.id)!==String(id);});revRenderUI();api('deleteCashExpense',{id:String(id)});}
 function revRenderExpenses(exp,total){var el=g('rev-expenses');if(!el)return;el.innerHTML=exp.map(function(e){return '<div style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px">'+e.name+'</span><div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:600;color:var(--red)">-'+revFmt(e.amount)+'</span><button onclick="revDeleteExp('+e.id+')" style="padding:2px 8px;border-radius:6px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;cursor:pointer">\u2715</button></div></div>';}).join('')||'<div style="padding:12px 14px;font-size:12px;color:var(--text2)">No cash expenses</div>';g('rev-exp-total').textContent='-'+revFmt(total);}
 
 // ── Cashflow ──
 function revRenderCashflow(remain,cashIn,vege,wCash,exp,totalBal){var el=g('rev-cashflow');if(!el)return;var wk=revWeekNum(REV_SEL_FROM);function row(l,v,c,b){return '<div style="display:flex;justify-content:space-between;padding:7px 0;'+(b?'font-weight:700;font-size:15px;border-top:2px solid var(--border);padding-top:10px;margin-top:4px':'font-size:13px')+'"><span>'+l+'</span><span style="color:'+(c||'inherit')+'">'+revFmt(v)+'</span></div>';}
   el.innerHTML=row('Remaining balance (prev week)',remain,'')+row('+ Cash-Sale (Week '+wk+')',cashIn,'var(--green)')+row('\u2212 Vege petty cash top-up',vege,'var(--amber)')+row('\u2212 Wages in cash',wCash,'var(--red)')+row('\u2212 Cash expenses',exp,'var(--red)')+row('= Total balance',totalBal,totalBal>=0?'var(--green)':'var(--red)',true)+'<div style="margin-top:8px"><button onclick="revEditBalance()" style="padding:6px 12px;border-radius:8px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">\u270F\uFE0F Adjust opening balance</button></div>';}
-async function revEditBalance(){var cur=revGetBalance(revPrevWeekEnd());var val=prompt('Opening balance for this week:',cur);if(val===null)return;REV_CACHE.bal[revPrevWeekEnd()]=parseFloat(val)||0;revRenderUI();api('setCashFlowBalance',{weekEnd:revPrevWeekEnd(),balance:parseFloat(val)||0});}
+function revEditBalance(){var cur=revGetBalance(revPrevWeekEnd());var val=prompt('Opening balance for this week:',cur);if(val===null)return;REV_CACHE.bal[revPrevWeekEnd()]=parseFloat(val)||0;revRenderUI();api('setCashFlowBalance',{weekEnd:revPrevWeekEnd(),balance:parseFloat(val)||0});}
 
 // ── P&L ──
 function revRenderPnL(net,rev,cash,card,wages,bankW,cashW,exp,vege,profit){var el=g('rev-pnl');if(!el)return;function row(l,v,c,b){return '<div style="display:flex;justify-content:space-between;padding:8px 14px;border-bottom:1px solid var(--border);'+(b?'font-weight:700;font-size:15px':'font-size:13px')+'"><span>'+l+'</span><span style="color:'+(c||'inherit')+'">'+revFmt(v)+'</span></div>';}el.innerHTML=row('Revenue (Lightspeed)',rev,'var(--green)')+row('\u2212 Cash',cash,'var(--amber)')+row('= Card (calculated)',card,'var(--blue)')+row('Net sales',net,'var(--green)',true)+'<div style="height:1px;background:var(--border)"></div>'+row('\uD83D\uDC77 Wages (bank)',bankW,'')+row('\uD83D\uDC77 Wages (cash)',cashW,'var(--red)')+row('\uD83E\uDD6C Vege petty cash',vege,'var(--amber)')+row('\uD83D\uDCB8 Cash expenses',exp,'var(--red)')+row('Total costs',wages+exp+vege,'var(--red)',true)+'<div style="height:1px;background:var(--border)"></div>'+row(profit>=0?'\u2705 Profit':'\u274C Loss',profit,profit>=0?'var(--green)':'var(--red)',true);}
