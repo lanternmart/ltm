@@ -122,6 +122,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-s
 .field label{display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em}
 .field input{width:100%;padding:14px 16px;border:1.5px solid #e5e7eb;border-radius:14px;font-size:16px;font-family:inherit;color:#111;background:#f9fafb;transition:border .15s}
 .field input:focus{outline:none;border-color:var(--blue);background:#fff;box-shadow:0 0 0 4px rgba(235,41,40,.1)}
+input[type="date"],input[type="time"]{-webkit-appearance:none;appearance:none;max-width:100%;box-sizing:border-box;min-width:0}
 #lmsg{margin-bottom:12px}
 .msg{padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.5}
 .msg-err{background:var(--red-bg);color:var(--red);border:1px solid var(--red-b)}
@@ -852,8 +853,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-s
         </div>
         <div id="rev-vege-form" style="display:none;padding:10px 14px;background:#f0f2f5;border-bottom:1px solid var(--border)">
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <div style="flex:1;min-width:100px"><div style="font-size:10px;color:var(--text2);margin-bottom:3px">Date</div><input type="date" id="rv-date" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:none;background:#fff;font-size:13px;font-family:inherit"></div>
-            <div style="flex:1;min-width:100px"><div style="font-size:10px;color:var(--text2);margin-bottom:3px">Supplier</div><input type="text" id="rv-sup" value="Ms. Hang" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:none;background:#fff;font-size:13px"></div>
+            <div style="flex:1;min-width:0"><div style="font-size:10px;color:var(--text2);margin-bottom:3px">Date</div><input type="date" id="rv-date" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:none;background:#fff;font-size:13px;font-family:inherit;-webkit-appearance:none;appearance:none;max-width:100%"></div>
+            <div style="flex:1;min-width:0"><div style="font-size:10px;color:var(--text2);margin-bottom:3px">Supplier</div><input type="text" id="rv-sup" value="Ms. Hang" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:none;background:#fff;font-size:13px"></div>
             <div style="flex:1;min-width:80px"><div style="font-size:10px;color:var(--text2);margin-bottom:3px">Amount</div><input type="number" step="0.01" id="rv-amt" placeholder="0.00" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:none;background:#fff;font-size:13px;font-family:monospace"></div>
           </div>
           <button onclick="revSaveVege()" style="margin-top:8px;padding:10px;width:100%;border-radius:10px;border:none;background:var(--blue);color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Save</button>
@@ -3423,7 +3424,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='11.1';
+var APP_VER='11.2';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4910,75 +4911,125 @@ function revRenderPnL(net,rev,cash,card,wages,bankW,cashW,exp,vege,profit){var e
 // ── Export Image (save to Photos via share/download) ──
 function revExportImg(){
   if(!REV_SEL_FROM)return alert('Select a range first');
-  var el=document.getElementById('page-revenue');if(!el)return;
-  // Use html2canvas CDN if available, else fallback screenshot prompt
   if(typeof html2canvas==='undefined'){
     var sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-    sc.onload=function(){doRevImg();};sc.onerror=function(){alert('Cannot load image library. Take a screenshot instead.');};
+    sc.onload=function(){doRevImg();};sc.onerror=function(){alert('Cannot load image library.');};
     document.head.appendChild(sc);
   } else doRevImg();
 }
 function doRevImg(){
-  var el=document.getElementById('page-revenue');
-  html2canvas(el,{scale:2,backgroundColor:'#f5f5f7',useCORS:true}).then(function(canvas){
+  // Build report HTML in a hidden container, render as image, then remove
+  var wrap=document.createElement('div');
+  wrap.style.cssText='position:absolute;left:-9999px;top:0;width:700px;background:#fff;padding:24px;font-family:-apple-system,sans-serif;font-size:12px;color:#111';
+  wrap.innerHTML=revBuildReportHTML();
+  document.body.appendChild(wrap);
+  html2canvas(wrap,{scale:2,backgroundColor:'#ffffff',useCORS:true}).then(function(canvas){
+    document.body.removeChild(wrap);
     canvas.toBlob(function(blob){
-      if(navigator.share&&navigator.canShare&&navigator.canShare({files:[new File([blob],'report.png',{type:'image/png'})]})){
-        navigator.share({files:[new File([blob],'lanternmart-week'+revWeekNum(REV_SEL_FROM)+'.png',{type:'image/png'})],title:'Lantern Mart Report'}).catch(function(){});
-      } else {
-        var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='lanternmart-week'+revWeekNum(REV_SEL_FROM)+'.png';a.click();
+      var fname='lanternmart-week'+revWeekNum(REV_SEL_FROM)+'.png';
+      if(navigator.share&&navigator.canShare){
+        try{var f=new File([blob],fname,{type:'image/png'});
+          if(navigator.canShare({files:[f]})){navigator.share({files:[f],title:'Lantern Mart Report'}).catch(function(){});return;}}catch(e){}
       }
+      var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fname;a.click();
     },'image/png');
-  });
+  }).catch(function(){document.body.removeChild(wrap);alert('Export failed');});
 }
 
 // ── Export PDF (in-app view with back button) ──
-function revExportPDF(){
-  if(!REV_SEL_FROM||!REV_SEL_TO)return alert('Select a range first');
-  var dates=revDateList(),DAY=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  var wk=revWeekNum(REV_SEL_FROM);
+function revBuildPayrollGrid(dates,w){
+  var DAY=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  // Build per-user per-day grid from ATTENDANCE
+  var byUser={};
+  if(ATTENDANCE&&ATTENDANCE.length){ATTENDANCE.forEach(function(a){
+    var ad=localDateStr(safeNewDate(a.date));if(!a.checkOut)return;
+    var hrs=parseFloat(a.hoursWorked)||0;if(!byUser[a.username])byUser[a.username]={};
+    if(!byUser[a.username][ad])byUser[a.username][ad]={hrs:0,pay:0};
+    byUser[a.username][ad].hrs+=hrs;
+  });}
+  // Match with user rates
+  var rows=[];
+  if(w.lines&&w.lines.length){w.lines.forEach(function(l){
+    var ud=byUser[l.name.toLowerCase()]||byUser[Object.keys(byUser).find(function(k){var uu=ALL_USERS_CACHE&&ALL_USERS_CACHE.find(function(u){return u.username===k;});return uu&&(uu.fullname===l.name||uu.username===l.name);})||'']||{};
+    var cells=dates.map(function(ds){var d=ud[ds];return d?d:{hrs:0,pay:0};});
+    // calc pay per day
+    cells=cells.map(function(c){return{hrs:c.hrs,pay:c.hrs*l.rate};});
+    rows.push({name:l.name,rate:l.rate,bankHrs:l.bankHrs,cells:cells,gross:l.gross,bankPay:l.bankPay,cashPay:l.cashPay});
+  });}
+  var html='<table style="font-size:10px"><tr><th style="text-align:left">Staff</th>';
+  dates.forEach(function(ds){var dt=safeNewDate(ds);var dn=DAY[dt.getDay()];var isSat=dt.getDay()===6,isSun=dt.getDay()===0;
+    html+='<th style="text-align:center;color:'+(isSun?'#c00':isSat?'#e67700':'inherit')+'">'+dn+'<br>'+dt.getDate()+'</th>';});
+  html+='<th style="text-align:right">Hrs</th><th style="text-align:right">Gross</th><th style="text-align:right">Bank</th><th style="text-align:right;color:#c00">Cash</th></tr>';
+  rows.forEach(function(r){
+    html+='<tr><td><b>'+r.name+'</b><br><span style="color:#666">$'+r.rate.toFixed(0)+'/h</span></td>';
+    r.cells.forEach(function(c){
+      html+='<td style="text-align:center;vertical-align:top;padding:3px 2px">';
+      if(c.hrs>0)html+='<div style="font-weight:700">'+c.hrs.toFixed(1)+'h</div><div style="font-size:9px;color:#2e7d32">$'+c.pay.toFixed(0)+'</div>';
+      html+='</td>';
+    });
+    html+='<td style="text-align:right;font-weight:700">'+r.cells.reduce(function(s,c){return s+c.hrs;},0).toFixed(1)+'</td>';
+    html+='<td style="text-align:right">'+revFmt(r.gross)+'</td>';
+    html+='<td style="text-align:right">'+revFmt(r.bankPay)+'</td>';
+    html+='<td style="text-align:right;font-weight:700;color:#c00">'+revFmt(r.cashPay)+'</td></tr>';
+  });
+  // totals
+  var totHrs=0,totGross=0,totBank=0,totCash=0;
+  rows.forEach(function(r){totHrs+=r.cells.reduce(function(s,c){return s+c.hrs;},0);totGross+=r.gross;totBank+=r.bankPay;totCash+=r.cashPay;});
+  html+='<tr class="tot"><td colspan="'+dates.length+'">TOTAL</td><td style="text-align:right;font-weight:700">'+totHrs.toFixed(1)+'</td><td style="text-align:right">'+revFmt(totGross)+'</td><td style="text-align:right">'+revFmt(totBank)+'</td><td style="text-align:right;color:#c00">'+revFmt(totCash)+'</td></tr>';
+  html+='</table>';
+  return html;
+}
+
+function revBuildReportHTML(){
+  var dates=revDateList(),DAY=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],wk=revWeekNum(REV_SEL_FROM);
   var totRev=0,totCash=0;
   var prevData={};dates.forEach(function(ds){var pd=new Date(ds+'T00:00:00');pd.setDate(pd.getDate()-7);var prev=revGetDay(localDateStr(pd));if(prev)prevData[ds]=prev.rev!==undefined?prev.rev:(prev.card||0)+(prev.cash||0);});
   var dayRows=dates.map(function(ds){var d=revGetDay(ds),rev=d?(d.rev!==undefined?d.rev:(d.card||0)+(d.cash||0)):0,cash=d?d.cash:0,card=rev-cash;totRev+=rev;totCash+=cash;var dt=safeNewDate(ds);
-    var wowCell='';if(prevData[ds]&&prevData[ds]>0){var p=Math.round((rev-prevData[ds])/prevData[ds]*100);wowCell='<span style="color:'+(p>=0?'green':'red')+';font-weight:700">'+(p>=0?'+':'')+p+'%</span>';}
-    return '<tr><td>'+DAY[dt.getDay()]+' '+dt.getDate()+'/'+String(dt.getMonth()+1)+'</td><td style="text-align:right">'+revFmt(rev)+'</td><td style="text-align:right">'+revFmt(cash)+'</td><td style="text-align:right">'+revFmt(card)+'</td><td style="text-align:center">'+wowCell+'</td></tr>';}).join('');
+    var wow='';if(prevData[ds]&&prevData[ds]>0){var p=Math.round((rev-prevData[ds])/prevData[ds]*100);wow='<span style="color:'+(p>=0?'green':'red')+';font-weight:700">'+(p>=0?'+':'')+p+'%</span>';}
+    return '<tr><td>'+DAY[dt.getDay()]+' '+dt.getDate()+'/'+String(dt.getMonth()+1)+'</td><td style="text-align:right">'+revFmt(rev)+'</td><td style="text-align:right">'+revFmt(cash)+'</td><td style="text-align:right">'+revFmt(card)+'</td><td style="text-align:center">'+wow+'</td></tr>';}).join('');
   var totCard=totRev-totCash;
   var w=revCalcWagesDetailed(dates);
-  var payrollRows=w.lines.map(function(l){return '<tr><td>'+l.name+'</td><td style="text-align:right">'+l.hrs.toFixed(1)+'h</td><td style="text-align:right">'+revFmt(l.rate)+'/h</td><td style="text-align:right">'+revFmt(l.gross)+'</td><td style="text-align:right">'+revFmt(l.bankPay)+'</td><td style="text-align:right;font-weight:700;color:#c00">'+revFmt(l.cashPay)+'</td></tr>';}).join('');
   var vegeList=revGetVege(),vegeTotal=vegeList.reduce(function(s,v){return s+(v.amount||0);},0);
-  var vegeRows=vegeList.map(function(v){var d=v.date.length>7?safeNewDate(v.date).toLocaleDateString('en-AU',{day:'numeric',month:'short'}):v.date;return '<tr><td>'+d+'</td><td>'+v.supplier+'</td><td style="text-align:right">'+revFmt(v.amount)+'</td></tr>';}).join('')||'<tr><td colspan="3" style="color:#999">None</td></tr>';
+  var vegeRows=vegeList.map(function(v){var d=v.date&&v.date.length>7?safeNewDate(v.date).toLocaleDateString('en-AU',{day:'numeric',month:'short'}):v.date;return '<tr><td>'+d+'</td><td>'+v.supplier+'</td><td style="text-align:right">'+revFmt(v.amount)+'</td></tr>';}).join('')||'<tr><td colspan="3" style="color:#999">None</td></tr>';
   var expenses=revGetExp(),expTotal=expenses.reduce(function(s,e){return s+(e.amount||0);},0);
   var expRows=expenses.map(function(e){return '<tr><td>'+e.name+'</td><td style="text-align:right">'+revFmt(e.amount)+'</td></tr>';}).join('')||'<tr><td colspan="2" style="color:#999">None</td></tr>';
-  var remain=revGetBalance(revPrevWeekEnd());var totalBal=remain+totCash-vegeTotal-w.cash-expTotal;
+  var remain=revGetBalance(revPrevWeekEnd()),totalBal=remain+totCash-vegeTotal-w.cash-expTotal;
+  return '<div style="text-align:center;margin-bottom:14px"><div style="font-size:22px;font-weight:800;color:#eb2928;letter-spacing:.08em">LANTERN MART ROCKHAMPTON</div><div style="font-size:17px;font-weight:700;margin-top:2px">REPORT WEEK '+wk+'</div><div style="font-size:11px;color:#666;margin-top:4px">'+REV_SEL_FROM+' to '+REV_SEL_TO+'</div></div>'+
+    '<h2 style="font-size:13px;margin:16px 0 6px;border-bottom:2px solid #eb2928;padding-bottom:4px">DAILY SALES</h2>'+
+    '<table style="width:100%;border-collapse:collapse;font-size:11px"><tr><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:left">Day</th><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:right">Revenue</th><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:right">Cash</th><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:right">Card</th><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:center">vs Prev</th></tr>'+
+    dayRows+'<tr style="background:#fef3f2;font-weight:700"><td style="padding:5px 6px;border:1px solid #ddd">TOTAL</td><td style="padding:5px 6px;border:1px solid #ddd;text-align:right">'+revFmt(totRev)+'</td><td style="padding:5px 6px;border:1px solid #ddd;text-align:right">'+revFmt(totCash)+'</td><td style="padding:5px 6px;border:1px solid #ddd;text-align:right">'+revFmt(totCard)+'</td><td style="padding:5px 6px;border:1px solid #ddd"></td></tr></table>'+
+    '<h2 style="font-size:13px;margin:16px 0 6px;border-bottom:2px solid #eb2928;padding-bottom:4px">PAYROLL</h2>'+
+    revBuildPayrollGrid(dates,w)+
+    '<h2 style="font-size:13px;margin:16px 0 6px;border-bottom:2px solid #eb2928;padding-bottom:4px">VEGE PETTY CASH ($'+VEGE_BUDGET+')</h2>'+
+    '<table style="width:100%;border-collapse:collapse;font-size:11px"><tr><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:left">Date</th><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7">Supplier</th><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:right">Amount</th></tr>'+
+    vegeRows+'<tr style="background:#fef3f2;font-weight:700"><td style="padding:5px 6px;border:1px solid #ddd" colspan="2">Total / Top-up</td><td style="padding:5px 6px;border:1px solid #ddd;text-align:right">'+revFmt(vegeTotal)+'</td></tr></table>'+
+    '<h2 style="font-size:13px;margin:16px 0 6px;border-bottom:2px solid #eb2928;padding-bottom:4px">CASH EXPENSES</h2>'+
+    '<table style="width:100%;border-collapse:collapse;font-size:11px"><tr><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:left">Item</th><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:right">Amount</th></tr>'+
+    expRows+'<tr style="background:#fef3f2;font-weight:700"><td style="padding:5px 6px;border:1px solid #ddd">TOTAL</td><td style="padding:5px 6px;border:1px solid #ddd;text-align:right">'+revFmt(expTotal)+'</td></tr></table>'+
+    '<h2 style="font-size:13px;margin:16px 0 6px;border-bottom:2px solid #eb2928;padding-bottom:4px">CASH FLOW</h2>'+
+    '<table style="width:100%;border-collapse:collapse;font-size:12px"><tr><td style="padding:5px 6px">Remaining balance (prev week)</td><td style="padding:5px 6px;text-align:right">'+revFmt(remain)+'</td></tr>'+
+    '<tr><td style="padding:5px 6px">+ Cash-Sale (Week '+wk+')</td><td style="padding:5px 6px;text-align:right;color:green">'+revFmt(totCash)+'</td></tr>'+
+    '<tr><td style="padding:5px 6px">\u2212 Vege petty cash top-up</td><td style="padding:5px 6px;text-align:right;color:#b8860b">'+revFmt(vegeTotal)+'</td></tr>'+
+    '<tr><td style="padding:5px 6px">\u2212 Wages in cash</td><td style="padding:5px 6px;text-align:right;color:red">'+revFmt(w.cash)+'</td></tr>'+
+    '<tr><td style="padding:5px 6px">\u2212 Cash expenses</td><td style="padding:5px 6px;text-align:right;color:red">'+revFmt(expTotal)+'</td></tr>'+
+    '<tr style="border-top:2px solid #333;font-weight:700;font-size:14px"><td style="padding:8px 6px">= Total balance</td><td style="padding:8px 6px;text-align:right;color:'+(totalBal>=0?'green':'red')+'">'+revFmt(totalBal)+'</td></tr></table>'+
+    '<div style="margin-top:16px;font-size:10px;color:#999;text-align:center">Generated '+new Date().toLocaleString('en-AU')+'</div>';
+}
+
+function revExportPDF(){
+  if(!REV_SEL_FROM||!REV_SEL_TO)return alert('Select a range first');
+  var wk=revWeekNum(REV_SEL_FROM);
   var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Report Week '+wk+'</title><style>'+
     'body{font-family:-apple-system,sans-serif;font-size:12px;color:#111;padding:16px;max-width:700px;margin:0 auto}'+
     '.back-bar{position:sticky;top:0;background:#eb2928;padding:12px 16px;margin:-16px -16px 16px;display:flex;align-items:center;gap:12px;z-index:10}'+
     '.back-bar button{background:rgba(255,255,255,.2);color:#fff;border:none;padding:8px 14px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}'+
     '.back-bar .title{color:#fff;font-size:14px;font-weight:700;flex:1}'+
-    'h1{font-size:20px;margin:0 0 2px;color:#eb2928;text-transform:uppercase;letter-spacing:.05em;text-align:center}'+
-    '.sub{text-align:center;color:#666;margin-bottom:16px;font-size:12px}'+
-    'h2{font-size:13px;margin:18px 0 6px;border-bottom:2px solid #eb2928;padding-bottom:4px;text-transform:uppercase}'+
     'table{width:100%;border-collapse:collapse;margin-bottom:14px}th,td{padding:5px 6px;border:1px solid #ddd;font-size:11px}th{background:#f5f5f7;font-weight:700;text-align:left}'+
-    '.tot{background:#fef3f2;font-weight:700}.cf td{border:none;padding:5px 6px;font-size:12px}.cf .sum{border-top:2px solid #333;font-weight:700;font-size:14px}'+
     '@media print{.back-bar{display:none}body{padding:10px}}'+
     '</style></head><body>'+
-    '<div class="back-bar"><button onclick="window.close();if(window.opener)window.opener.focus();">\u2190 Back to App</button><span class="title">Print / Save PDF</span><button onclick="window.print()">Print</button></div>'+
-    '<h1>LANTERN MART ROCKHAMPTON</h1><h1 style="font-size:16px;margin-bottom:4px">REPORT WEEK '+wk+'</h1>'+
-    '<div class="sub">'+REV_SEL_FROM+' to '+REV_SEL_TO+'</div>'+
-    '<h2>Daily Sales</h2><table><tr><th>Day</th><th style="text-align:right">Revenue</th><th style="text-align:right">Cash</th><th style="text-align:right">Card</th><th style="text-align:center">vs Prev</th></tr>'+
-    dayRows+'<tr class="tot"><td>TOTAL</td><td style="text-align:right">'+revFmt(totRev)+'</td><td style="text-align:right">'+revFmt(totCash)+'</td><td style="text-align:right">'+revFmt(totCard)+'</td><td></td></tr></table>'+
-    '<h2>Payroll</h2><table><tr><th>Staff</th><th style="text-align:right">Hours</th><th style="text-align:right">Rate</th><th style="text-align:right">Gross</th><th style="text-align:right">Bank</th><th style="text-align:right">Cash</th></tr>'+
-    payrollRows+'<tr class="tot"><td colspan="3">TOTAL</td><td style="text-align:right">'+revFmt(w.total)+'</td><td style="text-align:right">'+revFmt(w.bank)+'</td><td style="text-align:right">'+revFmt(w.cash)+'</td></tr></table>'+
-    '<h2>Vege Petty Cash ($'+VEGE_BUDGET+')</h2><table><tr><th>Date</th><th>Supplier</th><th style="text-align:right">Amount</th></tr>'+
-    vegeRows+'<tr class="tot"><td colspan="2">Total spent / Top-up</td><td style="text-align:right">'+revFmt(vegeTotal)+'</td></tr></table>'+
-    '<h2>Cash Expenses</h2><table><tr><th>Item</th><th style="text-align:right">Amount</th></tr>'+
-    expRows+'<tr class="tot"><td>TOTAL</td><td style="text-align:right">'+revFmt(expTotal)+'</td></tr></table>'+
-    '<h2>Cash Flow</h2><table class="cf"><tr><td>Remaining balance (prev week)</td><td style="text-align:right">'+revFmt(remain)+'</td></tr>'+
-    '<tr><td>+ Cash-Sale (Week '+wk+')</td><td style="text-align:right;color:green">'+revFmt(totCash)+'</td></tr>'+
-    '<tr><td>\u2212 Vege petty cash top-up</td><td style="text-align:right;color:#b8860b">'+revFmt(vegeTotal)+'</td></tr>'+
-    '<tr><td>\u2212 Wages in cash</td><td style="text-align:right;color:red">'+revFmt(w.cash)+'</td></tr>'+
-    '<tr><td>\u2212 Cash expenses</td><td style="text-align:right;color:red">'+revFmt(expTotal)+'</td></tr>'+
-    '<tr class="sum"><td>= Total balance</td><td style="text-align:right;color:'+(totalBal>=0?'green':'red')+'">'+revFmt(totalBal)+'</td></tr></table>'+
-    '<div style="margin-top:16px;font-size:10px;color:#999;text-align:center">Generated '+new Date().toLocaleString('en-AU')+'</div></body></html>';
+    '<div class="back-bar"><button onclick="history.back();window.close();">\u2190 Back</button><span class="title">Week '+wk+' Report</span><button onclick="window.print()">Print / PDF</button></div>'+
+    revBuildReportHTML()+
+    '</body></html>';
   var win=window.open('','_blank');
   if(win){win.document.write(html);win.document.close();}
   else alert('Allow popups to export');
