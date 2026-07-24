@@ -3424,7 +3424,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='11.2';
+var APP_VER='1.0.0';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4820,20 +4820,43 @@ function revUpdateRangeLabel(){var el=g('rev-range-label');if(!el)return;if(!REV
 function revFmtShort(ds){return safeNewDate(ds).toLocaleDateString('en-AU',{day:'numeric',month:'short'});}
 
 // ── Data: lm_rev_YYYY-MM-DD = {rev, cash} (rev=revenue from Lightspeed, card=rev-cash) ──
-function revGetDay(ds){try{var s=localStorage.getItem('lm_rev_'+ds);return s?JSON.parse(s):null;}catch(e){return null;}}
-function revSetDay(ds,rev,cash){try{localStorage.setItem('lm_rev_'+ds,JSON.stringify({rev:rev||0,cash:cash||0}));}catch(e){}}
-function revGetExp(){try{var s=localStorage.getItem('lm_exp_'+REV_SEL_FROM+'_'+REV_SEL_TO);return s?JSON.parse(s):[];}catch(e){return[];}}
-function revSetExp(a){try{localStorage.setItem('lm_exp_'+REV_SEL_FROM+'_'+REV_SEL_TO,JSON.stringify(a));}catch(e){}}
-function revGetVege(){try{var s=localStorage.getItem('lm_vege_'+REV_SEL_FROM+'_'+REV_SEL_TO);return s?JSON.parse(s):[];}catch(e){return[];}}
-function revSetVege(a){try{localStorage.setItem('lm_vege_'+REV_SEL_FROM+'_'+REV_SEL_TO,JSON.stringify(a));}catch(e){}}
-function revGetBalance(we){try{return parseFloat(localStorage.getItem('lm_cf_bal_'+we))||0;}catch(e){return 0;}}
-function revSetBalance(we,v){try{localStorage.setItem('lm_cf_bal_'+we,String(v));}catch(e){}}
+// Revenue data — synced to Google Sheets, cached locally for speed
+var REV_CACHE={days:{},exp:null,vege:null,bal:{}};
+function revGetDay(ds){return REV_CACHE.days[ds]||null;}
+function revSetDay(ds,rev,cash){REV_CACHE.days[ds]={rev:rev||0,cash:cash||0};api('setRevenueDay',{date:ds,rev:rev||0,cash:cash||0});}
+function revGetExp(){return REV_CACHE.exp||[];}
+function revSetExp(a){REV_CACHE.exp=a;}
+function revGetVege(){return REV_CACHE.vege||[];}
+function revSetVege(a){REV_CACHE.vege=a;}
+function revGetBalance(we){return REV_CACHE.bal[we]||0;}
+function revSetBalance(we,v){REV_CACHE.bal[we]=v;api('setCashFlowBalance',{weekEnd:we,balance:v});}
+async function revFetchRange(){
+  if(!REV_SEL_FROM||!REV_SEL_TO)return;
+  var prevMon=new Date(REV_SEL_FROM+'T00:00:00');prevMon.setDate(prevMon.getDate()-7);
+  var prevSun=new Date(REV_SEL_TO+'T00:00:00');prevSun.setDate(prevSun.getDate()-7);
+  try{
+    var results=await Promise.all([
+      api('getRevenueData',{dateFrom:REV_SEL_FROM,dateTo:REV_SEL_TO}),
+      api('getCashExpenses',{weekFrom:REV_SEL_FROM,weekTo:REV_SEL_TO}),
+      api('getVegePettyCash',{weekFrom:REV_SEL_FROM,weekTo:REV_SEL_TO}),
+      api('getCashFlowBalance',{weekEnd:revPrevWeekEnd()}),
+      api('getRevenueData',{dateFrom:localDateStr(prevMon),dateTo:localDateStr(prevSun)})
+    ]);
+    REV_CACHE.days={};
+    if(results[0]&&results[0].data) results[0].data.forEach(function(d){REV_CACHE.days[d.date]={rev:d.rev,cash:d.cash};});
+    if(results[4]&&results[4].data) results[4].data.forEach(function(d){REV_CACHE.days[d.date]={rev:d.rev,cash:d.cash};});
+    REV_CACHE.exp=(results[1]&&results[1].data)||[];
+    REV_CACHE.vege=(results[2]&&results[2].data)||[];
+    REV_CACHE.bal[revPrevWeekEnd()]=(results[3]&&results[3].balance)||0;
+  }catch(e){console.error('revFetchRange',e);}
+}
 function revDateList(){if(!REV_SEL_FROM||!REV_SEL_TO)return[];var l=[],c=new Date(REV_SEL_FROM+'T00:00:00'),e=new Date(REV_SEL_TO+'T00:00:00');while(c<=e){l.push(localDateStr(c));c.setDate(c.getDate()+1);}return l;}
 function revPrevWeekEnd(){var d=new Date(REV_SEL_FROM+'T00:00:00');d.setDate(d.getDate()-1);return localDateStr(d);}
 
 // ── Main render ──
-function revLoadRange(){
+async function revLoadRange(){
   if(!REV_SEL_FROM||!REV_SEL_TO)return;
+  await revFetchRange(); // fetch all data from Sheets
   var dates=revDateList(),totRev=0,totCash=0,DAY=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   var maxNet=0,rows=dates.map(function(ds){var d=revGetDay(ds);var rev=d?(d.rev!==undefined?d.rev:(d.card||0)+(d.cash||0)):0;var cash=d?d.cash:0;totRev+=rev;totCash+=cash;if(rev>maxNet)maxNet=rev;return{ds:ds,rev:rev,cash:cash,card:rev-cash};});
   // WoW per day
@@ -4875,7 +4898,7 @@ function revLoadRange(){
   revRenderPnL(netSales,totRev,totCash,totCard,w.total,w.bank,w.cash,expTotal,vegeTotal,profit,remainBal,totalBal);
 }
 function revEditDay(ds,idx){var el=g('rev-edit-'+idx);if(el)el.style.display=el.style.display==='none'?'block':'none';}
-function revSaveDay(ds,idx){revSetDay(ds,parseFloat(g('rev-c-'+idx).value)||0,parseFloat(g('rev-k-'+idx).value)||0);g('rev-edit-'+idx).style.display='none';revRenderCal();revLoadRange();}
+async function revSaveDay(ds,idx){revSetDay(ds,parseFloat(g('rev-c-'+idx).value)||0,parseFloat(g('rev-k-'+idx).value)||0);g('rev-edit-'+idx).style.display='none';revRenderCal();await revLoadRange();}
 function revFmt(n){return '$'+(Number(n)||0).toFixed(2);}
 
 // ── Wages ──
@@ -4891,19 +4914,19 @@ function revSetWow(cur,dates){var el=g('rev-wow');if(!el)return;if(!dates.length
 
 // ── Vege Petty Cash ──
 function revToggleVegeForm(){var f=g('rev-vege-form');if(!f)return;f.style.display=f.style.display==='none'?'block':'none';if(f.style.display==='block'&&g('rv-date'))g('rv-date').value=localDateStr(new Date());}
-function revSaveVege(){var date=g('rv-date').value,sup=g('rv-sup').value||'Ms. Hang',amt=parseFloat(g('rv-amt').value)||0;if(!date||!amt){alert('Enter date and amount');return;}var list=revGetVege();list.push({id:Date.now(),date:date,supplier:sup,amount:amt});revSetVege(list);g('rv-amt').value='';g('rev-vege-form').style.display='none';revLoadRange();}
-function revDelVege(id){revSetVege(revGetVege().filter(function(v){return v.id!==id;}));revLoadRange();}
+async function revSaveVege(){var date=g('rv-date').value,sup=g('rv-sup').value||'Ms. Hang',amt=parseFloat(g('rv-amt').value)||0;if(!date||!amt){alert('Enter date and amount');return;}await api('addVegePettyCash',{weekFrom:REV_SEL_FROM,weekTo:REV_SEL_TO,date:date,supplier:sup,amount:amt});g('rv-amt').value='';g('rev-vege-form').style.display='none';await revLoadRange();}
+async function revDelVege(id){await api('deleteVegePettyCash',{id:String(id)});await revLoadRange();}
 function revRenderVege(list,total){var el=g('rev-vege-list');if(!el)return;el.innerHTML=list.map(function(v){var d=v.date.length>7?safeNewDate(v.date).toLocaleDateString('en-AU',{day:'numeric',month:'short'}):v.date;return '<div style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px">'+d+' · '+v.supplier+'</span><div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:600">'+revFmt(v.amount)+'</span><button onclick="revDelVege('+v.id+')" style="padding:2px 8px;border-radius:6px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;cursor:pointer">\u2715</button></div></div>';}).join('')||'<div style="padding:12px 14px;font-size:12px;color:var(--text2)">No purchases yet</div>';g('rev-vege-total').textContent=revFmt(total);g('rev-vege-topup').textContent=revFmt(total)+' top-up';}
 
 // ── Cash Expenses ──
-function revAddExpense(){var n=prompt('Expense name:');if(!n)return;var a=prompt('Amount ($):');if(!a)return;var exp=revGetExp();exp.push({id:Date.now(),name:n,amount:parseFloat(a)||0});revSetExp(exp);revLoadRange();}
-function revDeleteExp(id){revSetExp(revGetExp().filter(function(e){return e.id!==id;}));revLoadRange();}
+async function revAddExpense(){var n=prompt('Expense name:');if(!n)return;var a=prompt('Amount ($):');if(!a)return;await api('addCashExpense',{weekFrom:REV_SEL_FROM,weekTo:REV_SEL_TO,name:n,amount:parseFloat(a)||0});await revLoadRange();}
+async function revDeleteExp(id){await api('deleteCashExpense',{id:String(id)});await revLoadRange();}
 function revRenderExpenses(exp,total){var el=g('rev-expenses');if(!el)return;el.innerHTML=exp.map(function(e){return '<div style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px">'+e.name+'</span><div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:600;color:var(--red)">-'+revFmt(e.amount)+'</span><button onclick="revDeleteExp('+e.id+')" style="padding:2px 8px;border-radius:6px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;cursor:pointer">\u2715</button></div></div>';}).join('')||'<div style="padding:12px 14px;font-size:12px;color:var(--text2)">No cash expenses</div>';g('rev-exp-total').textContent='-'+revFmt(total);}
 
 // ── Cashflow ──
 function revRenderCashflow(remain,cashIn,vege,wCash,exp,totalBal){var el=g('rev-cashflow');if(!el)return;var wk=revWeekNum(REV_SEL_FROM);function row(l,v,c,b){return '<div style="display:flex;justify-content:space-between;padding:7px 0;'+(b?'font-weight:700;font-size:15px;border-top:2px solid var(--border);padding-top:10px;margin-top:4px':'font-size:13px')+'"><span>'+l+'</span><span style="color:'+(c||'inherit')+'">'+revFmt(v)+'</span></div>';}
   el.innerHTML=row('Remaining balance (prev week)',remain,'')+row('+ Cash-Sale (Week '+wk+')',cashIn,'var(--green)')+row('\u2212 Vege petty cash top-up',vege,'var(--amber)')+row('\u2212 Wages in cash',wCash,'var(--red)')+row('\u2212 Cash expenses',exp,'var(--red)')+row('= Total balance',totalBal,totalBal>=0?'var(--green)':'var(--red)',true)+'<div style="margin-top:8px"><button onclick="revEditBalance()" style="padding:6px 12px;border-radius:8px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">\u270F\uFE0F Adjust opening balance</button></div>';}
-function revEditBalance(){var cur=revGetBalance(revPrevWeekEnd());var val=prompt('Opening balance for this week:',cur);if(val===null)return;revSetBalance(revPrevWeekEnd(),parseFloat(val)||0);revLoadRange();}
+async function revEditBalance(){var cur=revGetBalance(revPrevWeekEnd());var val=prompt('Opening balance for this week:',cur);if(val===null)return;revSetBalance(revPrevWeekEnd(),parseFloat(val)||0);await revLoadRange();}
 
 // ── P&L ──
 function revRenderPnL(net,rev,cash,card,wages,bankW,cashW,exp,vege,profit){var el=g('rev-pnl');if(!el)return;function row(l,v,c,b){return '<div style="display:flex;justify-content:space-between;padding:8px 14px;border-bottom:1px solid var(--border);'+(b?'font-weight:700;font-size:15px':'font-size:13px')+'"><span>'+l+'</span><span style="color:'+(c||'inherit')+'">'+revFmt(v)+'</span></div>';}el.innerHTML=row('Revenue (Lightspeed)',rev,'var(--green)')+row('\u2212 Cash',cash,'var(--amber)')+row('= Card (calculated)',card,'var(--blue)')+row('Net sales',net,'var(--green)',true)+'<div style="height:1px;background:var(--border)"></div>'+row('\uD83D\uDC77 Wages (bank)',bankW,'')+row('\uD83D\uDC77 Wages (cash)',cashW,'var(--red)')+row('\uD83E\uDD6C Vege petty cash',vege,'var(--amber)')+row('\uD83D\uDCB8 Cash expenses',exp,'var(--red)')+row('Total costs',wages+exp+vege,'var(--red)',true)+'<div style="height:1px;background:var(--border)"></div>'+row(profit>=0?'\u2705 Profit':'\u274C Loss',profit,profit>=0?'var(--green)':'var(--red)',true);}
