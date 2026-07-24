@@ -807,37 +807,21 @@ input[type="date"],input[type="time"]{-webkit-appearance:none;appearance:none;ma
       </div>
       <!-- Summary -->
       <div id="rev-summary" style="display:none">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
           <div class="scard" style="padding:12px 14px">
-            <div style="font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Net Sales</div>
-            <div id="rev-total" style="font-size:22px;font-weight:700;color:var(--green)">$0.00</div>
-            <div id="rev-wow" style="font-size:11px;font-weight:700;margin-top:3px"></div>
-          </div>
-          <div class="scard" style="padding:12px 14px">
-            <div style="font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Profit</div>
-            <div id="rev-profit" style="font-size:22px;font-weight:700">$0.00</div>
-            <div style="font-size:10px;color:var(--text2);margin-top:2px">sales − costs</div>
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
-          <div class="scard" style="padding:10px 12px">
             <div style="font-size:9px;font-weight:600;color:var(--text2);text-transform:uppercase;margin-bottom:3px">Revenue</div>
-            <div id="rev-card" style="font-size:16px;font-weight:700">$0</div>
+            <div id="rev-card" style="font-size:18px;font-weight:700">$0</div>
             <div style="font-size:9px;color:var(--text2)">Lightspeed</div>
           </div>
-          <div class="scard" style="padding:10px 12px">
+          <div class="scard" style="padding:12px 14px">
             <div style="font-size:9px;font-weight:600;color:var(--text2);text-transform:uppercase;margin-bottom:3px">Cash</div>
-            <div id="rev-cash" style="font-size:16px;font-weight:700;color:var(--amber)">$0</div>
+            <div id="rev-cash" style="font-size:18px;font-weight:700;color:var(--amber)">$0</div>
           </div>
-          <div class="scard" style="padding:10px 12px">
+          <div class="scard" style="padding:12px 14px">
             <div style="font-size:9px;font-weight:600;color:var(--text2);text-transform:uppercase;margin-bottom:3px">Card</div>
-            <div id="rev-cardcalc" style="font-size:16px;font-weight:700;color:var(--blue)">$0</div>
+            <div id="rev-cardcalc" style="font-size:18px;font-weight:700;color:var(--blue)">$0</div>
             <div style="font-size:9px;color:var(--text2)">rev − cash</div>
           </div>
-        </div>
-        <div class="scard" style="padding:10px 12px;margin-bottom:12px">
-          <div style="font-size:9px;font-weight:600;color:var(--text2);text-transform:uppercase;margin-bottom:3px">Wages</div>
-          <div id="rev-wages" style="font-size:16px;font-weight:700;color:var(--red)">$0</div>
         </div>
       </div>
       <!-- Daily breakdown -->
@@ -3424,7 +3408,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.0.12';
+var APP_VER='1.0.13';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4913,18 +4897,11 @@ function revRenderUI(){
   var remainBal=revGetBalance(revPrevWeekEnd());
   var totalBal=remainBal+totCash-vegeTotal-w.cash-expTotal;
   revSetBalance(revWeekEnd(),totalBal);
+  var profit=netSales-expTotal-vegeTotal-w.total;
   g('rev-summary').style.display='block';
-  g('rev-total').innerHTML=revFmt(netSales)+totalWowHtml;
   g('rev-card').textContent=revFmt(totRev);
   g('rev-cash').textContent=revFmt(totCash);
   if(g('rev-cardcalc'))g('rev-cardcalc').textContent=revFmt(totCard);
-  g('rev-wages').textContent=revFmt(w.total);
-  var profit=netSales-expTotal-vegeTotal-w.total;
-  g('rev-profit').textContent=revFmt(profit);g('rev-profit').style.color=profit>=0?'var(--green)':'var(--red)';
-  // Prev week total for WoW on total row
-  var prevWeekTotal=0;dates.forEach(function(ds){var pd=new Date(ds+'T00:00:00');pd.setDate(pd.getDate()-7);var prev=revGetDay(localDateStr(pd));if(prev)prevWeekTotal+=(prev.rev!==undefined?prev.rev:(prev.card||0)+(prev.cash||0));});
-  var totalWowHtml='';if(prevWeekTotal>0){var twp=Math.round((netSales-prevWeekTotal)/prevWeekTotal*100);totalWowHtml=' <span style="font-size:11px;color:'+(twp>=0?'var(--green)':'var(--red)')+';font-weight:700">'+(twp>=0?'\u25B2 +':'\u25BC ')+twp+'% vs prev wk</span>';}
-  revSetWow(netSales,dates);
   revRenderCashflow(remainBal,totCash,vegeTotal,w.cash,expTotal,totalBal);
   revRenderPnL(netSales,totRev,totCash,totCard,w.total,w.bank,w.cash,expTotal,vegeTotal,profit,remainBal,totalBal);
 }
@@ -4947,7 +4924,6 @@ function revCalcWagesDetailed(dates){
   if(ALL_USERS_CACHE&&ALL_USERS_CACHE.length){ALL_USERS_CACHE.forEach(function(uu){var bu=byUser[uu.username];if(!bu)return;bu.rate=parseFloat(uu.hourlyRate)||0;bu.bankAmt=parseFloat(uu.bankAmount)||0;bu.name=uu.fullname||uu.username;var gross=bu.hrs*bu.rate;var bankPay=Math.min(bu.bankAmt,gross);total+=gross;bank+=bankPay;lines.push({name:bu.name,hrs:bu.hrs,rate:bu.rate,gross:gross,bankPay:bankPay,cashPay:gross-bankPay,bankAmt:bu.bankAmt});});}
   return{total:Math.round(total*100)/100,bank:Math.round(bank*100)/100,cash:Math.round((total-bank)*100)/100,lines:lines};
 }
-function revSetWow(cur,dates){var el=g('rev-wow');if(!el)return;if(!dates.length){el.textContent='';return;}var prev=0;dates.forEach(function(ds){var d=new Date(ds+'T00:00:00');d.setDate(d.getDate()-7);var pd=revGetDay(localDateStr(d));if(pd)prev+=parseFloat(pd.rev!==undefined?pd.rev:(pd.card||0)+(pd.cash||0))||0;});if(prev>0){var p=Math.round((cur-prev)/prev*100);el.style.color=p>=0?'var(--green)':'var(--red)';el.textContent=(p>=0?'\u25B2 +':'\u25BC ')+p+'% vs prev';}else el.textContent='';}
 
 // ── Vege Petty Cash ──
 function revToggleVegeForm(){var f=g('rev-vege-form');if(!f)return;f.style.display=f.style.display==='none'?'block':'none';if(f.style.display==='block'&&g('rv-date'))g('rv-date').value=localDateStr(new Date());}
