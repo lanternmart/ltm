@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lantern Mart — Clear Cache</title>
+<style>
+body{font-family:-apple-system,sans-serif;max-width:400px;margin:40px auto;padding:20px;text-align:center}
+h1{font-size:22px;color:#eb2928}
+#log{text-align:left;font-size:13px;background:#f5f5f7;border-radius:12px;padding:16px;margin-top:20px;min-height:100px}
+.ok{color:#2e7d32} .err{color:#c62828}
+button{background:#eb2928;color:#fff;border:none;padding:14px 30px;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-top:16px;font-family:inherit}
+</style></head><body>
+<h1>🔄 Clear Cache</h1>
+<p style="color:#666;font-size:14px">This will unregister all service workers, delete all caches, and reload the app fresh.</p>
+<button onclick="go()">Clear everything & reload</button>
+<div id="log"></div>
+<script>
+function log(msg,ok){document.getElementById('log').innerHTML+='<div class="'+(ok?'ok':'err')+'">'+(ok?'✅':'⚠️')+' '+msg+'</div>';}
+async function go(){
+  // 1. Unregister ALL service workers
+  if('serviceWorker' in navigator){
+    var regs=await navigator.serviceWorker.getRegistrations();
+    log('Found '+regs.length+' service worker(s)',true);
+    for(var r of regs){await r.unregister();log('Unregistered: '+(r.scope||'unknown'),true);}
+  } else log('No SW support');
+  // 2. Delete ALL caches
+  if('caches' in window){
+    var keys=await caches.keys();
+    log('Found '+keys.length+' cache(s)',true);
+    for(var k of keys){await caches.delete(k);log('Deleted cache: '+k,true);}
+  }
+  // 3. Clear localStorage session
+  try{localStorage.removeItem('wr_session');log('Session cleared',true);}catch(e){}
+  log('Done! Redirecting to app in 2 seconds...',true);
+  setTimeout(function(){window.location.href='./index.html?t='+Date.now();},2000);
+}
+</script>
+</body></html>
