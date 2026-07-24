@@ -811,11 +811,13 @@ input[type="date"],input[type="time"]{-webkit-appearance:none;appearance:none;ma
           <div class="scard" style="padding:12px 14px">
             <div style="font-size:9px;font-weight:600;color:var(--text2);text-transform:uppercase;margin-bottom:3px">Revenue</div>
             <div id="rev-card" style="font-size:18px;font-weight:700">$0</div>
+            <div id="rev-card-wow" style="font-size:10px;font-weight:700;margin-top:2px"></div>
             <div style="font-size:9px;color:var(--text2)">Lightspeed</div>
           </div>
           <div class="scard" style="padding:12px 14px">
             <div style="font-size:9px;font-weight:600;color:var(--text2);text-transform:uppercase;margin-bottom:3px">Cash</div>
             <div id="rev-cash" style="font-size:18px;font-weight:700;color:var(--amber)">$0</div>
+            <div id="rev-cash-wow" style="font-size:10px;font-weight:700;margin-top:2px"></div>
           </div>
           <div class="scard" style="padding:12px 14px">
             <div style="font-size:9px;font-weight:600;color:var(--text2);text-transform:uppercase;margin-bottom:3px">Card</div>
@@ -3408,7 +3410,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.0.13';
+var APP_VER='1.0.14';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4902,6 +4904,23 @@ function revRenderUI(){
   g('rev-card').textContent=revFmt(totRev);
   g('rev-cash').textContent=revFmt(totCash);
   if(g('rev-cardcalc'))g('rev-cardcalc').textContent=revFmt(totCard);
+  // WoW: compare cumulative up to same day-of-week as today
+  var today=localDateStr(new Date());
+  var todayDow=(new Date().getDay()+6)%7; // 0=Mon
+  var cutoffIdx=Math.min(todayDow, dates.length-1); // how many days to compare
+  var thisRev=0,thisCash=0,prevRev=0,prevCash=0;
+  for(var di=0;di<=cutoffIdx&&di<dates.length;di++){
+    var dd=revGetDay(dates[di]);
+    thisRev+=dd?parseFloat(dd.rev)||0:0;
+    thisCash+=dd?parseFloat(dd.cash)||0:0;
+    var pd=new Date(dates[di]+'T00:00:00');pd.setDate(pd.getDate()-7);
+    var pdd=revGetDay(localDateStr(pd));
+    prevRev+=pdd?parseFloat(pdd.rev)||0:0;
+    prevCash+=pdd?parseFloat(pdd.cash)||0:0;
+  }
+  var wowRevEl=g('rev-card-wow'),wowCashEl=g('rev-cash-wow');
+  if(wowRevEl){if(prevRev>0){var rp=Math.round((thisRev-prevRev)/prevRev*100);wowRevEl.style.color=rp>=0?'var(--green)':'var(--red)';wowRevEl.textContent=(rp>=0?'\u25B2 +':'\u25BC ')+rp+'%';}else wowRevEl.textContent='';}
+  if(wowCashEl){if(prevCash>0){var cp=Math.round((thisCash-prevCash)/prevCash*100);wowCashEl.style.color=cp>=0?'var(--green)':'var(--red)';wowCashEl.textContent=(cp>=0?'\u25B2 +':'\u25BC ')+cp+'%';}else wowCashEl.textContent='';}
   revRenderCashflow(remainBal,totCash,vegeTotal,w.cash,expTotal,totalBal);
   revRenderPnL(netSales,totRev,totCash,totCard,w.total,w.bank,w.cash,expTotal,vegeTotal,profit,remainBal,totalBal);
 }
