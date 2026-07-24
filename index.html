@@ -3424,7 +3424,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.0.9';
+var APP_VER='1.0.10';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4912,7 +4912,7 @@ function revRenderUI(){
   var totCard=totRev-totCash,netSales=totRev;
   var remainBal=revGetBalance(revPrevWeekEnd());
   var totalBal=remainBal+totCash-vegeTotal-w.cash-expTotal;
-  revSetBalance(REV_SEL_TO,totalBal);
+  revSetBalance(revWeekEnd(),totalBal);
   g('rev-summary').style.display='block';
   g('rev-total').innerHTML=revFmt(netSales)+totalWowHtml;
   g('rev-card').textContent=revFmt(totRev);
