@@ -3424,7 +3424,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.0.5';
+var APP_VER='1.0.6';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4788,6 +4788,17 @@ function setSidebar(open){
 // ════════════════════════════════════════════════════
 var REV_CAL_MONTH=new Date().getMonth(),REV_CAL_YEAR=new Date().getFullYear();
 var REV_SEL_FROM=null,REV_SEL_TO=null,REV_PICKING=0;
+// Week boundaries (Mon-Sun) — expenses/vege/balance always reference the full week
+var REV_WEEK_FROM=null,REV_WEEK_TO=null;
+function revComputeWeek(){
+  if(!REV_SEL_FROM){REV_WEEK_FROM=null;REV_WEEK_TO=null;return;}
+  var d=new Date(REV_SEL_FROM+'T00:00:00'),dow=(d.getDay()+6)%7;
+  var mon=new Date(d);mon.setDate(mon.getDate()-dow);
+  var sun=new Date(mon);sun.setDate(sun.getDate()+6);
+  REV_WEEK_FROM=localDateStr(mon);REV_WEEK_TO=localDateStr(sun);
+}
+function revWeekEnd(){return REV_WEEK_TO;}
+function revPrevWeekEnd(){if(!REV_WEEK_FROM)return '';var d=new Date(REV_WEEK_FROM+'T00:00:00');d.setDate(d.getDate()-1);return localDateStr(d);}
 var VEGE_BUDGET=1000;
 
 function initRevenuePage(){revSelectWeek();}
@@ -4813,8 +4824,12 @@ function revRenderCal(){
   }
   grid.innerHTML=html;revUpdateRangeLabel();
 }
-function revPickDate(ds){if(REV_PICKING===0){REV_SEL_FROM=ds;REV_SEL_TO=ds;REV_PICKING=1;}else{if(ds<REV_SEL_FROM){REV_SEL_TO=REV_SEL_FROM;REV_SEL_FROM=ds;}else{REV_SEL_TO=ds;}REV_PICKING=0;revLoadRange();}revRenderCal();}
-function revSelectWeek(){var t=new Date(),dow=(t.getDay()+6)%7,mon=new Date(t);mon.setDate(mon.getDate()-dow);var sun=new Date(mon);sun.setDate(sun.getDate()+6);REV_SEL_FROM=localDateStr(mon);REV_SEL_TO=localDateStr(sun);REV_CAL_MONTH=t.getMonth();REV_CAL_YEAR=t.getFullYear();REV_PICKING=0;revRenderCal();revLoadRange();}
+function revPickDate(ds){
+  if(REV_PICKING===0){REV_SEL_FROM=ds;REV_SEL_TO=ds;REV_PICKING=1;}
+  else{if(ds<REV_SEL_FROM){REV_SEL_TO=REV_SEL_FROM;REV_SEL_FROM=ds;}else{REV_SEL_TO=ds;}REV_PICKING=0;}
+  revComputeWeek();revRenderCal();revLoadRange();
+}
+function revSelectWeek(){var t=new Date(),dow=(t.getDay()+6)%7,mon=new Date(t);mon.setDate(mon.getDate()-dow);var sun=new Date(mon);sun.setDate(sun.getDate()+6);REV_SEL_FROM=localDateStr(mon);REV_SEL_TO=localDateStr(sun);REV_CAL_MONTH=t.getMonth();REV_CAL_YEAR=t.getFullYear();REV_PICKING=0;revComputeWeek();revRenderCal();revLoadRange();}
 function revClearRange(){REV_SEL_FROM=null;REV_SEL_TO=null;REV_PICKING=0;revRenderCal();if(g('rev-summary'))g('rev-summary').style.display='none';if(g('rev-days'))g('rev-days').innerHTML='<div style="padding:20px;text-align:center;color:var(--text2);font-size:13px">Select a date or range</div>';}
 function revUpdateRangeLabel(){var el=g('rev-range-label');if(!el)return;if(!REV_SEL_FROM){el.textContent='Tap a date or select a range';return;}if(REV_PICKING===1){el.textContent='Now tap the end date';return;}el.textContent=REV_SEL_FROM===REV_SEL_TO?revFmtShort(REV_SEL_FROM):revFmtShort(REV_SEL_FROM)+' → '+revFmtShort(REV_SEL_TO);}
 function revFmtShort(ds){return safeNewDate(ds).toLocaleDateString('en-AU',{day:'numeric',month:'short'});}
@@ -4836,9 +4851,9 @@ async function revFetchRange(){
   var prevSun=new Date(REV_SEL_TO+'T00:00:00');prevSun.setDate(prevSun.getDate()-7);
   try{
     var results=await Promise.all([
-      api('getRevenueData',{dateFrom:REV_SEL_FROM,dateTo:REV_SEL_TO}),
-      api('getCashExpenses',{weekFrom:REV_SEL_FROM,weekTo:REV_SEL_TO}),
-      api('getVegePettyCash',{weekFrom:REV_SEL_FROM,weekTo:REV_SEL_TO}),
+      api('getRevenueData',{dateFrom:REV_WEEK_FROM,dateTo:REV_WEEK_TO}),
+      api('getCashExpenses',{weekFrom:REV_WEEK_FROM,weekTo:REV_WEEK_TO}),
+      api('getVegePettyCash',{weekFrom:REV_WEEK_FROM,weekTo:REV_WEEK_TO}),
       api('getCashFlowBalance',{weekEnd:revPrevWeekEnd()}),
       api('getRevenueData',{dateFrom:localDateStr(prevMon),dateTo:localDateStr(prevSun)})
     ]);
@@ -4856,8 +4871,11 @@ async function revFetchRange(){
     if(results[3]&&results[3].ok) REV_CACHE.bal[revPrevWeekEnd()]=results[3].balance||0;
   }catch(e){console.error('revFetchRange',e);}
 }
-function revDateList(){if(!REV_SEL_FROM||!REV_SEL_TO)return[];var l=[],c=new Date(REV_SEL_FROM+'T00:00:00'),e=new Date(REV_SEL_TO+'T00:00:00');while(c<=e){l.push(localDateStr(c));c.setDate(c.getDate()+1);}return l;}
-function revPrevWeekEnd(){var d=new Date(REV_SEL_FROM+'T00:00:00');d.setDate(d.getDate()-1);return localDateStr(d);}
+function revDateList(){
+  if(!REV_WEEK_FROM||!REV_WEEK_TO)return[];
+  var l=[],c=new Date(REV_WEEK_FROM+'T00:00:00'),e=new Date(REV_WEEK_TO+'T00:00:00');
+  while(c<=e){l.push(localDateStr(c));c.setDate(c.getDate()+1);}return l;
+}
 
 // ── Main render ──
 async function revLoadRange(){
@@ -4930,12 +4948,12 @@ function revSetWow(cur,dates){var el=g('rev-wow');if(!el)return;if(!dates.length
 
 // ── Vege Petty Cash ──
 function revToggleVegeForm(){var f=g('rev-vege-form');if(!f)return;f.style.display=f.style.display==='none'?'block':'none';if(f.style.display==='block'&&g('rv-date'))g('rv-date').value=localDateStr(new Date());}
-async function revSaveVege(){var date=g('rv-date').value,sup=g('rv-sup').value||'Ms. Hang',amt=parseFloat(g('rv-amt').value)||0;if(!date||!amt){alert('Enter date and amount');return;}var r=await api('addVegePettyCash',{weekFrom:REV_SEL_FROM,weekTo:REV_SEL_TO,date:date,supplier:sup,amount:amt});if(r&&r.ok)REV_CACHE.vege.push({id:r.id||String(Date.now()),date:date,supplier:sup,amount:amt});g('rv-amt').value='';g('rev-vege-form').style.display='none';revRenderUI();}
+async function revSaveVege(){var date=g('rv-date').value,sup=g('rv-sup').value||'Ms. Hang',amt=parseFloat(g('rv-amt').value)||0;if(!date||!amt){alert('Enter date and amount');return;}var r=await api('addVegePettyCash',{weekFrom:REV_WEEK_FROM,weekTo:REV_WEEK_TO,date:date,supplier:sup,amount:amt});if(r&&r.ok)REV_CACHE.vege.push({id:r.id||String(Date.now()),date:date,supplier:sup,amount:amt});g('rv-amt').value='';g('rev-vege-form').style.display='none';revRenderUI();}
 async function revDelVege(id){REV_CACHE.vege=REV_CACHE.vege.filter(function(v){return String(v.id)!==String(id);});revRenderUI();api('deleteVegePettyCash',{id:String(id)});}
 function revRenderVege(list,total){var el=g('rev-vege-list');if(!el)return;el.innerHTML=list.map(function(v){var d=v.date.length>7?safeNewDate(v.date).toLocaleDateString('en-AU',{day:'numeric',month:'short'}):v.date;return '<div style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px">'+d+' · '+v.supplier+'</span><div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:600">'+revFmt(v.amount)+'</span><button onclick="revDelVege('+v.id+')" style="padding:2px 8px;border-radius:6px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;cursor:pointer">\u2715</button></div></div>';}).join('')||'<div style="padding:12px 14px;font-size:12px;color:var(--text2)">No purchases yet</div>';g('rev-vege-total').textContent=revFmt(total);g('rev-vege-topup').textContent=revFmt(total)+' top-up';}
 
 // ── Cash Expenses ──
-async function revAddExpense(){var n=prompt('Expense name:');if(!n)return;var a=prompt('Amount ($):');if(!a)return;var r=await api('addCashExpense',{weekFrom:REV_SEL_FROM,weekTo:REV_SEL_TO,name:n,amount:parseFloat(a)||0});if(r&&r.ok)REV_CACHE.exp.push({id:r.id||String(Date.now()),name:n,amount:parseFloat(a)||0});revRenderUI();}
+async function revAddExpense(){var n=prompt('Expense name:');if(!n)return;var a=prompt('Amount ($):');if(!a)return;var r=await api('addCashExpense',{weekFrom:REV_WEEK_FROM,weekTo:REV_WEEK_TO,name:n,amount:parseFloat(a)||0});if(r&&r.ok)REV_CACHE.exp.push({id:r.id||String(Date.now()),name:n,amount:parseFloat(a)||0});revRenderUI();}
 async function revDeleteExp(id){REV_CACHE.exp=REV_CACHE.exp.filter(function(e){return String(e.id)!==String(id);});revRenderUI();api('deleteCashExpense',{id:String(id)});}
 function revRenderExpenses(exp,total){var el=g('rev-expenses');if(!el)return;el.innerHTML=exp.map(function(e){return '<div style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px">'+e.name+'</span><div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:600;color:var(--red)">-'+revFmt(e.amount)+'</span><button onclick="revDeleteExp('+e.id+')" style="padding:2px 8px;border-radius:6px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;cursor:pointer">\u2715</button></div></div>';}).join('')||'<div style="padding:12px 14px;font-size:12px;color:var(--text2)">No cash expenses</div>';g('rev-exp-total').textContent='-'+revFmt(total);}
 
