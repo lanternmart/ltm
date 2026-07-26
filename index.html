@@ -3410,7 +3410,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.1.6';
+var APP_VER='1.1.7';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -5094,8 +5094,9 @@ function revBuildReportHTML(){
   var totRev=0,totCash=0;
   var prevData={};dates.forEach(function(ds){var pd=new Date(ds+'T00:00:00');pd.setDate(pd.getDate()-7);var prev=revGetDay(localDateStr(pd));if(prev)prevData[ds]=parseFloat(prev.rev!==undefined?prev.rev:(prev.card||0)+(prev.cash||0))||0;});
   var dayRows=dates.map(function(ds){var d=revGetDay(ds),card=d?parseFloat(d.card)||0:0,cashLS=d?parseFloat(d.cashLS)||parseFloat(d.rev)||0:0,cashActual=d?parseFloat(d.cashActual)||parseFloat(d.cash)||0:0;var revLS=card+cashLS;totRev+=revLS;totCash+=cashActual;var dt=safeNewDate(ds);
-    var wow='';if(prevData[ds]&&prevData[ds]>0){var p=Math.round((revLS-prevData[ds])/prevData[ds]*100);wow='<span style="color:'+(p>=0?'green':'red')+';font-weight:700">'+(p>=0?'+':'')+p+'%</span>';}
-    return '<tr><td>'+DAY[dt.getDay()]+' '+dt.getDate()+'/'+String(dt.getMonth()+1)+'</td><td style="text-align:right">'+revFmt(cashActual)+'</td><td style="text-align:right">'+revFmt(revLS)+'</td><td style="text-align:center">'+wow+'</td></tr>';}).join('');
+    var prevRevLS=prevData[ds]||0;
+    var wow='';if(prevRevLS>0){var p=Math.round((revLS-prevRevLS)/prevRevLS*100);wow='<span style="color:'+(p>=0?'green':'red')+';font-weight:700">'+(p>=0?'+':'')+p+'%</span>';}
+    return '<tr><td>'+DAY[dt.getDay()]+' '+dt.getDate()+'/'+String(dt.getMonth()+1)+'</td><td style="text-align:right">'+revFmt(card)+'</td><td style="text-align:right">'+revFmt(cashActual)+'</td><td style="text-align:right">'+revFmt(revLS)+'</td><td style="text-align:right;color:#999">'+revFmt(prevRevLS)+'</td><td style="text-align:center">'+wow+'</td></tr>';}).join('');
   var totCard=totRev-totCash;
   var w=revCalcWagesDetailed(dates);
   var vegeList=revGetVege(),vegeTotal=vegeList.reduce(function(s,v){return s+(v.amount||0);},0);
@@ -5105,8 +5106,8 @@ function revBuildReportHTML(){
   var remain=revGetBalance(revPrevWeekEnd()),totalBal=remain+totCash-vegeTotal-w.cash-expTotal;
   return '<div style="text-align:center;margin-bottom:14px"><div style="font-size:22px;font-weight:800;color:#eb2928;letter-spacing:.08em">LANTERN MART ROCKHAMPTON</div><div style="font-size:17px;font-weight:700;margin-top:2px">REPORT WEEK '+wk+'</div><div style="font-size:11px;color:#666;margin-top:4px">'+REV_SEL_FROM+' to '+REV_SEL_TO+'</div></div>'+
     '<h2 style="font-size:13px;margin:16px 0 6px;border-bottom:2px solid #eb2928;padding-bottom:4px">DAILY SALES</h2>'+
-    '<table style="width:100%;border-collapse:collapse;font-size:11px"><tr><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:left">Day</th><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:right">Cash (Counted)</th><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:right">Revenue (LS)</th><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:center">vs Prev</th></tr>'+
-    dayRows+'<tr style="background:#fef3f2;font-weight:700"><td style="padding:5px 6px;border:1px solid #ddd">TOTAL</td><td style="padding:5px 6px;border:1px solid #ddd;text-align:right">'+revFmt(totCash)+'</td><td style="padding:5px 6px;border:1px solid #ddd;text-align:right">'+revFmt(totRev)+'</td><td style="padding:5px 6px;border:1px solid #ddd;text-align:center">'+(function(){var pt=0;dates.forEach(function(ds){var pd=new Date(ds+"T00:00:00");pd.setDate(pd.getDate()-7);var prev=revGetDay(localDateStr(pd));if(prev)pt+=(parseFloat(prev.card)||0)+(parseFloat(prev.cashLS)||parseFloat(prev.rev)||0);});if(pt>0){var p=Math.round((totRev-pt)/pt*100);return '<span style="color:'+(p>=0?'green':'red')+';font-weight:700">'+(p>=0?'+':'')+p+'%</span>';}return '';})()+'</td></tr></table>'+
+    '<table style="width:100%;border-collapse:collapse;font-size:11px"><tr><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:left">Day</th><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:right">Card</th><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:right">Cash (Counted)</th><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:right">Revenue (LS)</th><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:right">Prev. Revenue</th><th style="padding:5px 6px;border:1px solid #ddd;background:#f5f5f7;text-align:center">% vs Prev</th></tr>'+
+    dayRows+'<tr style="background:#fef3f2;font-weight:700"><td style="padding:5px 6px;border:1px solid #ddd">TOTAL</td><td style="padding:5px 6px;border:1px solid #ddd;text-align:right">'+revFmt(totRev-totCash)+'</td><td style="padding:5px 6px;border:1px solid #ddd;text-align:right">'+revFmt(totCash)+'</td><td style="padding:5px 6px;border:1px solid #ddd;text-align:right">'+revFmt(totRev)+'</td>'+(function(){var pt=0;dates.forEach(function(ds){var pd=new Date(ds+"T00:00:00");pd.setDate(pd.getDate()-7);var prev=revGetDay(localDateStr(pd));if(prev)pt+=(parseFloat(prev.card)||0)+(parseFloat(prev.cashLS)||parseFloat(prev.rev)||0);});var pctHtml='';if(pt>0){var p=Math.round((totRev-pt)/pt*100);pctHtml='<span style="color:'+(p>=0?'green':'red')+';font-weight:700">'+(p>=0?'+':'')+p+'%</span>';}return '<td style="padding:5px 6px;border:1px solid #ddd;text-align:right;color:#999">'+revFmt(pt)+'</td><td style="padding:5px 6px;border:1px solid #ddd;text-align:center">'+pctHtml+'</td>';})()+'</tr></table>'+
     '<h2 style="font-size:13px;margin:16px 0 6px;border-bottom:2px solid #eb2928;padding-bottom:4px">PAYROLL</h2>'+
     revBuildPayrollGrid(dates,w)+
     '<h2 style="font-size:13px;margin:16px 0 6px;border-bottom:2px solid #eb2928;padding-bottom:4px">VEGE PETTY CASH ($'+VEGE_BUDGET+')</h2>'+
