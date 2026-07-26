@@ -3410,7 +3410,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.1.7';
+var APP_VER='1.1.8';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -5092,7 +5092,7 @@ function revBuildPayrollGrid(dates,w){
 function revBuildReportHTML(){
   var dates=revDateList(),DAY=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],wk=revWeekNum(REV_SEL_FROM);
   var totRev=0,totCash=0;
-  var prevData={};dates.forEach(function(ds){var pd=new Date(ds+'T00:00:00');pd.setDate(pd.getDate()-7);var prev=revGetDay(localDateStr(pd));if(prev)prevData[ds]=parseFloat(prev.rev!==undefined?prev.rev:(prev.card||0)+(prev.cash||0))||0;});
+  var prevData={};dates.forEach(function(ds){var pd=new Date(ds+'T00:00:00');pd.setDate(pd.getDate()-7);var prev=revGetDay(localDateStr(pd));if(prev)prevData[ds]=(parseFloat(prev.card)||0)+(parseFloat(prev.cashLS)||parseFloat(prev.rev)||0);});
   var dayRows=dates.map(function(ds){var d=revGetDay(ds),card=d?parseFloat(d.card)||0:0,cashLS=d?parseFloat(d.cashLS)||parseFloat(d.rev)||0:0,cashActual=d?parseFloat(d.cashActual)||parseFloat(d.cash)||0:0;var revLS=card+cashLS;totRev+=revLS;totCash+=cashActual;var dt=safeNewDate(ds);
     var prevRevLS=prevData[ds]||0;
     var wow='';if(prevRevLS>0){var p=Math.round((revLS-prevRevLS)/prevRevLS*100);wow='<span style="color:'+(p>=0?'green':'red')+';font-weight:700">'+(p>=0?'+':'')+p+'%</span>';}
