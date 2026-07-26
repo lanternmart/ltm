@@ -3410,7 +3410,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.1.5';
+var APP_VER='1.1.6';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4901,7 +4901,7 @@ function revRenderUI(){
   }
   var expenses=revGetExp(),expTotal=expenses.reduce(function(s,e){return s+(parseFloat(e.amount)||0);},0);
   var vegeList=revGetVege(),vegeTotal=vegeList.reduce(function(s,v){return s+(parseFloat(v.amount)||0);},0);
-  var maxRevLS=0,cumRemain=0,rows=dates.map(function(ds){
+  var maxRevLS=0,rows=dates.map(function(ds){
     var d=revGetDay(ds);
     var card=d?parseFloat(d.card)||0:0;
     var cashLS=d?parseFloat(d.cashLS)||parseFloat(d.rev)||0:0;
@@ -4909,11 +4909,9 @@ function revRenderUI(){
     totCard+=card;totCashLS+=cashLS;totCashAct+=cashActual;
     var revLS=card+cashLS;if(revLS>maxRevLS)maxRevLS=revLS;
     var dayWage=Math.round((dailyWages[ds]||0)*100)/100;
-    cumRemain+=Math.min(cashLS,cashActual)-dayWage;
-    return{ds:ds,card:card,cashLS:cashLS,cashActual:cashActual,revLS:revLS,revActual:card+cashActual,remainCash:cumRemain,dayWage:dayWage};
+    var remainCash=Math.min(cashLS,cashActual)-dayWage;
+    return{ds:ds,card:card,cashLS:cashLS,cashActual:cashActual,revLS:revLS,revActual:card+cashActual,remainCash:remainCash,dayWage:dayWage};
   });
-  // Subtract total expenses from the last day's cumulative remaining
-  if(rows.length)rows[rows.length-1].remainCash-=expTotal;
   // WoW per day (compare revLS)
   var prevData={};dates.forEach(function(ds){var pd=new Date(ds+'T00:00:00');pd.setDate(pd.getDate()-7);var prev=revGetDay(localDateStr(pd));if(prev){var pc=parseFloat(prev.card)||0,pcl=parseFloat(prev.cashLS)||parseFloat(prev.rev)||0;prevData[ds]=pc+pcl;}});
   // Daily breakdown — input: Card / Cash(LS) / Cash(Counted)
