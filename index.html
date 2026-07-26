@@ -1568,6 +1568,7 @@ function quickRender(){
 // ════ NAV ════
 var PAGE_TITLES={checkin:'Check In / Out',dash:'Dashboard',inv:'Inventory',orders:'Order Suggestions',picking:'Picking',ana:'Reports',admin:'Admin',payroll:'Payroll',revenue:'Revenue'};
 function gp(id,title){
+  if(typeof revFlushPending==='function') revFlushPending();
   var role=U?U.role:'';
   var realAdmin=REAL_ADMIN&&REAL_ADMIN.role==='admin';
   // Check In/Out: staff + mod only
@@ -3409,7 +3410,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.1.2';
+var APP_VER='1.1.3';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4899,15 +4900,14 @@ function revRenderUI(){
     var wowHtml='';if(prevData[r.ds]&&prevData[r.ds]>0){var wp=Math.round((r.revLS-prevData[r.ds])/prevData[r.ds]*100);wowHtml=' <span style="font-size:10px;color:'+(wp>=0?'var(--green)':'var(--red)')+';font-weight:700">'+(wp>=0?'+':'')+wp+'%</span>';}
     return '<div style="padding:10px 14px;border-bottom:1px solid var(--border)"><div style="display:flex;align-items:center;gap:10px">'+
       '<div style="width:34px;text-align:center;flex-shrink:0"><div style="font-size:11px;color:'+dnCol+';font-weight:600">'+dn+'</div><div style="font-size:14px;font-weight:700">'+dt.getDate()+'</div><div style="font-size:10px;color:var(--text3)">'+dt.toLocaleDateString('en-AU',{month:'short'})+'</div></div>'+
-      '<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:10px;color:var(--text2)">Card <span style="color:var(--blue)">'+revFmt(r.card)+'</span> Cash(C) <span style="color:var(--amber)">'+revFmt(r.cashActual)+'</span></span><span style="font-size:13px;font-weight:700;color:var(--green)">'+revFmt(r.revLS)+wowHtml+'</span></div>'+
-      '<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:10px;color:var(--text2)">Remaining</span><span style="font-size:11px;font-weight:700;color:'+(r.remainCash>=0?'var(--green)':'var(--red)')+'">'+revFmt(r.remainCash)+'</span></div>'+
+      '<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:13px;font-weight:700;color:var(--green)">'+revFmt(r.revLS)+wowHtml+'</span><span style="font-size:11px;font-weight:600;color:'+(r.remainCash>=0?'var(--green)':'var(--red)')+'">Rem '+revFmt(r.remainCash)+'</span></div>'+
       '<div style="height:4px;background:var(--bg);border-radius:3px;overflow:hidden"><div style="height:100%;background:var(--blue);border-radius:3px;width:'+pct+'%"></div></div></div>'+
       '<button onclick="revEditDay(\''+r.ds+'\','+idx+')" style="padding:5px 9px;border-radius:8px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;cursor:pointer;flex-shrink:0">\u270F\uFE0F</button></div>'+
       '<div id="rev-edit-'+idx+'" style="display:none;margin-top:8px;padding:10px;background:#f0f2f5;border-radius:10px"><div style="font-size:11px;color:var(--text2);margin-bottom:6px">'+dn+' '+dt.getDate()+'</div>'+
       '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
-        '<div style="flex:1;min-width:70px"><div style="font-size:10px;color:var(--text2);margin-bottom:3px">Card</div><input type="number" step="0.01" id="rev-a-'+idx+'" value="'+(r.card||'')+'" placeholder="0" style="width:100%;box-sizing:border-box;padding:9px;border-radius:10px;border:none;background:#fff;font-size:14px;font-family:monospace"></div>'+
-        '<div style="flex:1;min-width:70px"><div style="font-size:10px;color:var(--text2);margin-bottom:3px">Cash (LS)</div><input type="number" step="0.01" id="rev-b-'+idx+'" value="'+(r.cashLS||'')+'" placeholder="0" style="width:100%;box-sizing:border-box;padding:9px;border-radius:10px;border:none;background:#fff;font-size:14px;font-family:monospace"></div>'+
-        '<div style="flex:1;min-width:70px"><div style="font-size:10px;color:var(--text2);margin-bottom:3px">Cash (Counted)</div><input type="number" step="0.01" id="rev-c-'+idx+'" value="'+(r.cashActual||'')+'" placeholder="0" style="width:100%;box-sizing:border-box;padding:9px;border-radius:10px;border:none;background:#fff;font-size:14px;font-family:monospace"></div>'+
+        '<div style="flex:1;min-width:70px"><div style="font-size:10px;color:var(--text2);margin-bottom:3px">Card</div><input type="number" step="0.01" onchange="revMarkDirty(\''+r.ds+'\','+idx+')" id="rev-a-'+idx+'" value="'+(r.card||'')+'" placeholder="0" style="width:100%;box-sizing:border-box;padding:9px;border-radius:10px;border:none;background:#fff;font-size:14px;font-family:monospace"></div>'+
+        '<div style="flex:1;min-width:70px"><div style="font-size:10px;color:var(--text2);margin-bottom:3px">Cash (LS)</div><input type="number" step="0.01" onchange="revMarkDirty(\''+r.ds+'\','+idx+')" id="rev-b-'+idx+'" value="'+(r.cashLS||'')+'" placeholder="0" style="width:100%;box-sizing:border-box;padding:9px;border-radius:10px;border:none;background:#fff;font-size:14px;font-family:monospace"></div>'+
+        '<div style="flex:1;min-width:70px"><div style="font-size:10px;color:var(--text2);margin-bottom:3px">Cash (Counted)</div><input type="number" step="0.01" onchange="revMarkDirty(\''+r.ds+'\','+idx+')" id="rev-c-'+idx+'" value="'+(r.cashActual||'')+'" placeholder="0" style="width:100%;box-sizing:border-box;padding:9px;border-radius:10px;border:none;background:#fff;font-size:14px;font-family:monospace"></div>'+
       '</div><button onclick="revSaveDay(\''+r.ds+'\','+idx+')" style="margin-top:6px;padding:10px;width:100%;border-radius:10px;border:none;background:var(--blue);color:#fff;font-size:13px;font-weight:700;cursor:pointer">Save</button></div></div>';
   }).join('')||'<div style="padding:20px;text-align:center;color:var(--text2)">No dates</div>';
   var vegeList=revGetVege(),vegeTotal=vegeList.reduce(function(s,v){return s+(parseFloat(v.amount)||0);},0);
@@ -4943,6 +4943,20 @@ function revRenderUI(){
 }
 
 function revEditDay(ds,idx){var el=g('rev-edit-'+idx);if(el)el.style.display=el.style.display==='none'?'block':'none';}
+// Auto-save: track which day is being edited, save on change/blur/tab-switch
+var REV_EDIT_PENDING=null;
+function revMarkDirty(ds,idx){REV_EDIT_PENDING={ds:ds,idx:idx};}
+function revFlushPending(){
+  if(!REV_EDIT_PENDING)return;
+  var p=REV_EDIT_PENDING;REV_EDIT_PENDING=null;
+  var a=g('rev-a-'+p.idx),b=g('rev-b-'+p.idx),c=g('rev-c-'+p.idx);
+  if(!a||!b||!c)return;
+  var card=parseFloat(a.value)||0,cashLS=parseFloat(b.value)||0,cashActual=parseFloat(c.value)||0;
+  var old=revGetDay(p.ds);
+  if(old&&old.card===card&&old.cashLS===cashLS&&old.cashActual===cashActual)return; // no change
+  REV_CACHE.days[p.ds]={card:card,cashLS:cashLS,cashActual:cashActual};
+  api('setRevenueDay',{date:p.ds,card:card,cashLS:cashLS,cashActual:cashActual});
+}
 function revSaveDay(ds,idx){
   var card=parseFloat(g('rev-a-'+idx).value)||0,cashLS=parseFloat(g('rev-b-'+idx).value)||0,cashActual=parseFloat(g('rev-c-'+idx).value)||0;
   REV_CACHE.days[ds]={card:card,cashLS:cashLS,cashActual:cashActual};
@@ -5441,7 +5455,7 @@ window.addEventListener('load', function(){
   setTimeout(checkVersionForce, 3000);
 });
 setInterval(checkVersionForce, 60000);
-document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible') checkVersionForce(); });
+document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible') checkVersionForce(); else if(typeof revFlushPending==='function') revFlushPending(); });
 window.addEventListener('focus', checkVersionForce);
 
 // ════════════ RECEIVE STOCK (invoice scan) ════════════
