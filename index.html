@@ -3410,7 +3410,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.1.4';
+var APP_VER='1.1.5';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4786,6 +4786,9 @@ function revComputeWeek(){
 function revWeekEnd(){return REV_WEEK_TO;}
 function revPrevWeekEnd(){if(!REV_WEEK_FROM)return '';var d=new Date(REV_WEEK_FROM+'T00:00:00');d.setDate(d.getDate()-1);return localDateStr(d);}
 var VEGE_BUDGET=1000;
+var REV_LAST_FETCH=0; // timestamp of last fetch
+var REV_LAST_SAVE=0;  // timestamp of last save
+var REV_COOLDOWN=8000; // don't re-fetch within 8s of a save
 
 
 // Compute date range for last N weeks from today (YYYY-MM-DD strings)
@@ -4841,6 +4844,9 @@ function revGetBalance(we){return REV_CACHE.bal[we]||0;}
 function revSetBalance(we,v){REV_CACHE.bal[we]=v;api('setCashFlowBalance',{weekEnd:we,balance:v});}
 async function revFetchRange(){
   if(!REV_SEL_FROM||!REV_SEL_TO)return;
+  // Skip fetch if we just saved — cache already has latest data
+  if(Date.now()-REV_LAST_SAVE<REV_COOLDOWN){return;}
+  REV_LAST_FETCH=Date.now();
   var prevMon=new Date(REV_SEL_FROM+'T00:00:00');prevMon.setDate(prevMon.getDate()-7);
   var prevSun=new Date(REV_SEL_TO+'T00:00:00');prevSun.setDate(prevSun.getDate()-7);
   try{
@@ -4918,7 +4924,7 @@ function revRenderUI(){
     var wowHtml='';if(prevData[r.ds]&&prevData[r.ds]>0){var wp=Math.round((r.revLS-prevData[r.ds])/prevData[r.ds]*100);wowHtml=' <span style="font-size:10px;color:'+(wp>=0?'var(--green)':'var(--red)')+';font-weight:700">'+(wp>=0?'+':'')+wp+'%</span>';}
     return '<div style="padding:10px 14px;border-bottom:1px solid var(--border)"><div style="display:flex;align-items:center;gap:10px">'+
       '<div style="width:34px;text-align:center;flex-shrink:0"><div style="font-size:11px;color:'+dnCol+';font-weight:600">'+dn+'</div><div style="font-size:14px;font-weight:700">'+dt.getDate()+'</div><div style="font-size:10px;color:var(--text3)">'+dt.toLocaleDateString('en-AU',{month:'short'})+'</div></div>'+
-      '<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:13px;font-weight:700;color:var(--green)">'+revFmt(r.revLS)+wowHtml+'</span><span style="font-size:11px;font-weight:600;color:'+(r.remainCash>=0?'var(--green)':'var(--red)')+'">Rem '+revFmt(r.remainCash)+'</span></div>'+
+      '<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:13px;font-weight:700;color:var(--green)">Rev '+revFmt(r.revLS)+wowHtml+'</span><span style="font-size:11px;font-weight:600;color:'+(r.remainCash>=0?'var(--green)':'var(--red)')+'">Rem '+revFmt(r.remainCash)+'</span></div>'+
       '<div style="height:4px;background:var(--bg);border-radius:3px;overflow:hidden"><div style="height:100%;background:var(--blue);border-radius:3px;width:'+pct+'%"></div></div></div>'+
       '<button onclick="revEditDay(\''+r.ds+'\','+idx+')" style="padding:5px 9px;border-radius:8px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;cursor:pointer;flex-shrink:0">\u270F\uFE0F</button></div>'+
       '<div id="rev-edit-'+idx+'" style="display:none;margin-top:8px;padding:10px;background:#f0f2f5;border-radius:10px"><div style="font-size:11px;color:var(--text2);margin-bottom:6px">'+dn+' '+dt.getDate()+'</div>'+
@@ -4971,11 +4977,13 @@ function revFlushPending(){
   var old=revGetDay(p.ds);
   if(old&&old.card===card&&old.cashLS===cashLS&&old.cashActual===cashActual)return; // no change
   REV_CACHE.days[p.ds]={card:card,cashLS:cashLS,cashActual:cashActual};
+  REV_LAST_SAVE=Date.now();
   api('setRevenueDay',{date:p.ds,card:card,cashLS:cashLS,cashActual:cashActual});
 }
 function revSaveDay(ds,idx){
   var card=parseFloat(g('rev-a-'+idx).value)||0,cashLS=parseFloat(g('rev-b-'+idx).value)||0,cashActual=parseFloat(g('rev-c-'+idx).value)||0;
   REV_CACHE.days[ds]={card:card,cashLS:cashLS,cashActual:cashActual};
+  REV_LAST_SAVE=Date.now();
   g('rev-edit-'+idx).style.display='none';
   revRenderCal();revRenderUI();
   api('setRevenueDay',{date:ds,card:card,cashLS:cashLS,cashActual:cashActual});
