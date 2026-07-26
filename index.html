@@ -1513,7 +1513,7 @@ function loadAll(){
 
   // ── WAVE 1 — only what the first screen needs (inventory + attendance + categories) ──
   var p1=api('getInventory');
-  var p3=api('getAttendance',{username:((REAL_ADMIN&&REAL_ADMIN.role==='admin')||(U&&U.role==='mod'))?'':U.username});
+  var attRange=recentWeeksRange(2);var p3=api('getAttendance',{username:((REAL_ADMIN&&REAL_ADMIN.role==='admin')||(U&&U.role==='mod'))?'':U.username,dateFrom:attRange.from,dateTo:attRange.to});
   var p4=api('getCategories');
 
   Promise.all([p1,p3,p4]).then(function(results){
@@ -3410,7 +3410,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.0.14';
+var APP_VER='1.0.15';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4732,7 +4732,7 @@ function saveEditAttendance(id){
 
 // Reload attendance from server and re-render payroll
 function reloadAttendance(cb){
-  api('getAttendance',{username:''}).then(function(r){
+  api('getAttendance',{username:'',dateFrom:recentWeeksRange(4).from,dateTo:recentWeeksRange(4).to}).then(function(r){
     if(r.ok&&r.data){
       ATTENDANCE=r.data.map(function(a){return Object.assign({},a,{date:safeDate(a.date)});});
     }
@@ -4787,6 +4787,14 @@ function revWeekEnd(){return REV_WEEK_TO;}
 function revPrevWeekEnd(){if(!REV_WEEK_FROM)return '';var d=new Date(REV_WEEK_FROM+'T00:00:00');d.setDate(d.getDate()-1);return localDateStr(d);}
 var VEGE_BUDGET=1000;
 
+
+// Compute date range for last N weeks from today (YYYY-MM-DD strings)
+function recentWeeksRange(n){
+  var t=new Date(),dow=(t.getDay()+6)%7;
+  var mon=new Date(t);mon.setDate(mon.getDate()-dow-(n-1)*7);
+  var sun=new Date(t);sun.setDate(sun.getDate()+(6-dow));
+  return {from:localDateStr(mon),to:localDateStr(sun)};
+}
 function initRevenuePage(){revSelectWeek();}
 function revWeekNum(ds){var d=new Date(ds+'T00:00:00'),start=new Date(d.getFullYear(),0,1);var diff=d-start,oneWeek=604800000;return Math.ceil((diff/oneWeek)+1);}
 
@@ -5097,7 +5105,7 @@ function ptrRefreshInPlace(){
   var activeEl=document.querySelector('.page.on');
   var activeId=activeEl?activeEl.id.replace('page-',''):'dash';
   var p1=api('getInventory');
-  var p3=api('getAttendance',{username:((REAL_ADMIN&&REAL_ADMIN.role==='admin')||(U&&U.role==='mod'))?'':U.username});
+  var attRange=recentWeeksRange(2);var p3=api('getAttendance',{username:((REAL_ADMIN&&REAL_ADMIN.role==='admin')||(U&&U.role==='mod'))?'':U.username,dateFrom:attRange.from,dateTo:attRange.to});
   var p4=api('getCategories');
   return Promise.all([p1,p3,p4]).then(function(results){
     var r1=results[0],r3=results[1],r4=results[2];
