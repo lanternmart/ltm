@@ -590,16 +590,7 @@ input[type="date"],input[type="time"]{-webkit-appearance:none;appearance:none;ma
         </div>
         <div class="metric-row" id="a-metrics"></div>
 
-        <div class="scard">
-          <div class="scard-hd" style="padding-bottom:12px">
-            <span class="scard-title">Transaction History</span>
-            <div style="display:flex;gap:6px">
-              <button id="tx-toggle-btn" onclick="toggleTxDisplay()" title="Hide/show history" style="width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:#f9fafb;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">👁️</button>
-              <button onclick="exportCSV()" style="padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:#f9fafb;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600">⬇️ CSV</button>
-            </div>
-          </div>
-          <div id="tx-list-ana"></div>
-        </div>
+
       </div>
     </div>
 
@@ -839,7 +830,7 @@ input[type="date"],input[type="time"]{-webkit-appearance:none;appearance:none;ma
         <div id="rev-vege-form" style="display:none;padding:10px 14px;background:#f0f2f5;border-bottom:1px solid var(--border)">
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <div style="flex:1;min-width:0"><div style="font-size:10px;color:var(--text2);margin-bottom:3px">Date</div><input type="date" id="rv-date" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:none;background:#fff;font-size:13px;font-family:inherit;-webkit-appearance:none;appearance:none;max-width:100%"></div>
-            <div style="flex:1;min-width:0"><div style="font-size:10px;color:var(--text2);margin-bottom:3px">Supplier</div><input type="text" id="rv-sup" value="Ms. Hang" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:none;background:#fff;font-size:13px"></div>
+            <div style="flex:1;min-width:0"><div style="font-size:10px;color:var(--text2);margin-bottom:3px">Supplier</div><select id="rv-sup" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:none;background:#fff;font-size:13px" onchange="if(this.value==='__custom__'){var cn=prompt('Enter supplier name:');if(cn){this.options[this.options.length-1].before(new Option(cn,cn));this.value=cn;}}"><option value="">Loading...</option></select></div>
             <div style="flex:1;min-width:80px"><div style="font-size:10px;color:var(--text2);margin-bottom:3px">Amount</div><input type="number" step="0.01" id="rv-amt" placeholder="0.00" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;border:none;background:#fff;font-size:13px;font-family:monospace"></div>
           </div>
           <button onclick="revSaveVege()" style="margin-top:8px;padding:10px;width:100%;border-radius:10px;border:none;background:var(--blue);color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Save</button>
@@ -3410,7 +3401,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.1.8';
+var APP_VER='1.2.0';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4798,6 +4789,24 @@ function recentWeeksRange(n){
   var sun=new Date(t);sun.setDate(sun.getDate()+(6-dow));
   return {from:localDateStr(mon),to:localDateStr(sun)};
 }
+
+// ── Suppliers cache ──
+var SUPPLIERS_CACHE=null;
+async function loadSuppliers(){
+  if(SUPPLIERS_CACHE)return SUPPLIERS_CACHE;
+  try{var r=await api('getSuppliers');if(r&&r.ok)SUPPLIERS_CACHE=r.data||[];else SUPPLIERS_CACHE=[];}catch(e){SUPPLIERS_CACHE=[];}
+  return SUPPLIERS_CACHE;
+}
+function populateSupplierDropdown(selId,defaultVal){
+  var sel=g(selId);if(!sel)return;
+  loadSuppliers().then(function(list){
+    var html='<option value="">-- Select --</option>';
+    list.forEach(function(s){if(s.active!==false)html+='<option value="'+s.name+'">'+s.name+'</option>';});
+    html+='<option value="__custom__">+ Custom...</option>';
+    sel.innerHTML=html;
+    if(defaultVal)sel.value=defaultVal;
+  });
+}
 function initRevenuePage(){revSelectWeek();}
 function revWeekNum(ds){var d=new Date(ds+'T00:00:00'),start=new Date(d.getFullYear(),0,1);var diff=d-start,oneWeek=604800000;return Math.ceil((diff/oneWeek)+1);}
 
@@ -4999,8 +5008,8 @@ function revCalcWagesDetailed(dates){
 }
 
 // ── Vege Petty Cash ──
-function revToggleVegeForm(){var f=g('rev-vege-form');if(!f)return;f.style.display=f.style.display==='none'?'block':'none';if(f.style.display==='block'&&g('rv-date'))g('rv-date').value=localDateStr(new Date());}
-function revSaveVege(){var date=g('rv-date').value,sup=g('rv-sup').value||'Ms. Hang',amt=parseFloat(g('rv-amt').value)||0;if(!date||!amt){alert('Enter date and amount');return;}var tmpId='veg_'+Date.now();REV_CACHE.vege.push({id:tmpId,date:date,supplier:sup,amount:amt});g('rv-amt').value='';g('rev-vege-form').style.display='none';revRenderUI();api('addVegePettyCash',{weekFrom:REV_WEEK_FROM,weekTo:REV_WEEK_TO,date:date,supplier:sup,amount:amt});}
+function revToggleVegeForm(){var f=g('rev-vege-form');if(!f)return;f.style.display=f.style.display==='none'?'block':'none';if(f.style.display==='block'){if(g('rv-date'))g('rv-date').value=localDateStr(new Date());populateSupplierDropdown('rv-sup','');}}
+function revSaveVege(){var date=g('rv-date').value,sup=g('rv-sup').value||'',amt=parseFloat(g('rv-amt').value)||0;if(!date||!amt){alert('Enter date and amount');return;}var tmpId='veg_'+Date.now();REV_CACHE.vege.push({id:tmpId,date:date,supplier:sup,amount:amt});g('rv-amt').value='';g('rev-vege-form').style.display='none';revRenderUI();api('addVegePettyCash',{weekFrom:REV_WEEK_FROM,weekTo:REV_WEEK_TO,date:date,supplier:sup,amount:amt});}
 function revDelVege(id){REV_CACHE.vege=REV_CACHE.vege.filter(function(v){return String(v.id)!==String(id);});revRenderUI();api('deleteVegePettyCash',{id:String(id)});}
 function revRenderVege(list,total){var el=g('rev-vege-list');if(!el)return;el.innerHTML=list.map(function(v){var d=v.date.length>7?safeNewDate(v.date).toLocaleDateString('en-AU',{day:'numeric',month:'short'}):v.date;return '<div style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px">'+d+' · '+v.supplier+'</span><div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px;font-weight:600">'+revFmt(v.amount)+'</span><button onclick="revDelVege('+v.id+')" style="padding:2px 8px;border-radius:6px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;cursor:pointer">\u2715</button></div></div>';}).join('')||'<div style="padding:12px 14px;font-size:12px;color:var(--text2)">No purchases yet</div>';g('rev-vege-total').textContent=revFmt(total);g('rev-vege-topup').textContent=revFmt(total)+' top-up';}
 
