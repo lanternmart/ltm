@@ -899,6 +899,14 @@ input[type="date"],input[type="time"]{-webkit-appearance:none;appearance:none;ma
       <div id="adm-sec-cats">
         <div class="scard" id="adm-cat-list"></div>
       </div>
+
+      <div class="sec-hd" style="margin-top:20px;cursor:pointer" onclick="toggleAdmSection('sups')">
+        <span class="sec-title"><span class="adm-arrow" id="adm-arrow-sups">▶</span> Suppliers</span>
+        <button onclick="event.stopPropagation();openAddSupplier()" style="padding:8px 14px;border-radius:10px;background:var(--blue);color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer">+ Add</button>
+      </div>
+      <div id="adm-sec-sups" style="display:none">
+        <div class="scard" id="adm-sup-list"><div style="padding:16px;text-align:center;color:var(--text2)">Loading...</div></div>
+      </div>
     </div>
 
   </div><!-- end scroll-area -->
@@ -964,8 +972,8 @@ input[type="date"],input[type="time"]{-webkit-appearance:none;appearance:none;ma
           <input type="text" id="i-supplier-sku" placeholder="e.g. 955732" style="font-family:monospace">
         </div>
         <div class="fld">
-          <label>Supplier Name</label>
-          <input type="text" id="i-supplier-name" placeholder="e.g. Bidfood">
+          <label>Supplier</label>
+          <select id="i-supplier-name" style="width:100%;padding:9px;border-radius:10px;border:1.5px solid var(--border);font-size:14px;font-family:inherit;background:#fff" onchange="if(this.value==='__custom__'){var cn=prompt('Enter supplier name:');if(cn){this.options[this.options.length-1].before(new Option(cn,cn));this.value=cn;}else this.value='';}"><option value="">-- Select --</option></select>
         </div>
       </div>
       <div class="fld-row">
@@ -2781,6 +2789,7 @@ function setAdmFilter(cat,el){
 }
 var ADM_COLLAPSED={};
 function toggleAdmSection(which){
+  if(which==='sups'){var sec=g('adm-sec-sups');if(sec&&sec.style.display==='none')renderSuppliers();}
   ADM_COLLAPSED[which]=!ADM_COLLAPSED[which];
   var sec=g('adm-sec-'+which), arr=g('adm-arrow-'+which);
   if(sec) sec.style.display=ADM_COLLAPSED[which]?'none':'';
@@ -3055,7 +3064,7 @@ function openAddItem(){
   g('m-item-title').textContent='Add Item';
   g('i-sku').value='';g('i-name').value='';g('i-unit').value='';
   g('i-qty').value='0';g('i-thr').value='10';g('i-id').value='';
-  g('i-supplier-sku').value='';g('i-supplier-name').value='';g('i-cost').value='0';
+  g('i-supplier-sku').value='';g('i-cost').value='0';populateSupplierSelect('i-supplier-name','');
   g('i-qty-label').textContent='Opening Stock';
   g('i-qty-hint').style.display='none';
   g('i-msg').innerHTML='';clearSKUPreview();resetSKUPreviewStyle();om('m-item');
@@ -3067,7 +3076,7 @@ function openEditItem(id){
   g('m-item-title').textContent='Edit Item';
   g('i-sku').value=it.sku;g('i-name').value=it.name;g('i-cat').value=it.cat;
   g('i-unit').value=it.unit;g('i-qty').value=it.qty;g('i-thr').value=it.threshold;g('i-id').value=it.id;
-  g('i-supplier-sku').value=it.supplierSku||'';g('i-supplier-name').value=it.supplierName||'';g('i-cost').value=it.cost||0;
+  g('i-supplier-sku').value=it.supplierSku||'';g('i-cost').value=it.cost||0;populateSupplierSelect('i-supplier-name',it.supplierName||'');
   g('i-qty-label').textContent='Current Stock';
   g('i-qty-hint').style.display='block';
   g('i-msg').innerHTML='';clearSKUPreview();resetSKUPreviewStyle();om('m-item');
@@ -3080,7 +3089,7 @@ function duplicateItem(id){
   var newSKU=cc+'-'+nc+'-'+(Math.floor(Math.random()*9000)+1000);
   g('i-sku').value=newSKU;g('i-name').value='Copy of '+it.name;g('i-cat').value=it.cat;
   g('i-unit').value=it.unit;g('i-qty').value='0';g('i-thr').value=it.threshold;g('i-id').value='';
-  g('i-supplier-sku').value=it.supplierSku||'';g('i-supplier-name').value=it.supplierName||'';g('i-cost').value=it.cost||0;
+  g('i-supplier-sku').value=it.supplierSku||'';g('i-cost').value=it.cost||0;populateSupplierSelect('i-supplier-name',it.supplierName||'');
   g('i-qty-label').textContent='Opening Stock';
   g('i-qty-hint').style.display='none';
   resetSKUPreviewStyle();
@@ -3401,7 +3410,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.2.0';
+var APP_VER='1.2.2';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4757,6 +4766,63 @@ function toggleSidebar(){
 function setSidebar(open){
   if(open===SIDEBAR_OPEN) return;
   toggleSidebar();
+}
+
+// ══════════════════════════════════════
+// SUPPLIERS MANAGEMENT (Admin tab)
+// ══════════════════════════════════════
+function renderSuppliers(){
+  loadSuppliers().then(function(list){
+    SUPPLIERS_CACHE=list;
+    var el=g('adm-sup-list');if(!el)return;
+    if(!list.length){el.innerHTML='<div style="padding:16px;text-align:center;color:var(--text2)">No suppliers yet. Tap + Add to create one.</div>';return;}
+    el.innerHTML=list.map(function(s){
+      return '<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
+        '<div><div style="font-size:14px;font-weight:600">'+s.name+'</div>'+
+        (s.phone?'<div style="font-size:11px;color:var(--text2)">📞 '+s.phone+'</div>':'')+
+        (s.category?'<div style="font-size:11px;color:var(--text2)">🏷️ '+s.category+'</div>':'')+
+        '</div>'+
+        '<div style="display:flex;gap:6px">'+
+          '<button onclick="editSupplier(\''+s.id+'\')" style="padding:5px 10px;border-radius:8px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;cursor:pointer">✏️</button>'+
+          '<button onclick="delSupplier(\''+s.id+'\',\''+s.name.replace(/'/g,"\\'")+'\')" style="padding:5px 10px;border-radius:8px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;cursor:pointer">🗑️</button>'+
+        '</div></div>';
+    }).join('');
+  });
+}
+function openAddSupplier(){
+  var name=prompt('Supplier name:');if(!name)return;
+  var phone=prompt('Phone (optional):');
+  var cat=prompt('Category (e.g. Veg, Meat, Dry, Frozen):');
+  ov('Adding supplier...');
+  api('addSupplier',{name:name,phone:phone||'',category:cat||''}).then(function(r){
+    cv();if(r&&r.ok){SUPPLIERS_CACHE=null;renderSuppliers();}else alert(r&&r.msg||'Error');
+  });
+}
+function editSupplier(id){
+  var s=(SUPPLIERS_CACHE||[]).find(function(x){return x.id===id;});if(!s)return;
+  var name=prompt('Name:',s.name);if(!name)return;
+  var phone=prompt('Phone:',s.phone||'');
+  var cat=prompt('Category:',s.category||'');
+  ov('Saving...');
+  api('updateSupplier',{id:id,name:name,phone:phone||'',category:cat||''}).then(function(r){
+    cv();if(r&&r.ok){SUPPLIERS_CACHE=null;renderSuppliers();}else alert(r&&r.msg||'Error');
+  });
+}
+function delSupplier(id,name){
+  if(!confirm('Delete supplier "'+name+'"?'))return;
+  ov('Deleting...');
+  api('deleteSupplier',{id:id}).then(function(r){
+    cv();if(r&&r.ok){SUPPLIERS_CACHE=null;renderSuppliers();}else alert(r&&r.msg||'Error');
+  });
+}
+function populateSupplierSelect(selId,currentVal){
+  var sel=g(selId);if(!sel)return;
+  loadSuppliers().then(function(list){
+    var html='<option value="">-- Select supplier --</option>';
+    list.forEach(function(s){if(s.active!==false)html+='<option value="'+s.name+'"'+(s.name===currentVal?' selected':'')+'>'+s.name+'</option>';});
+    html+='<option value="__custom__">+ Custom...</option>';
+    sel.innerHTML=html;
+  });
 }
 
 // ════════════════════════════════════════════════════
