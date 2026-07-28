@@ -902,9 +902,19 @@ input[type="date"],input[type="time"]{-webkit-appearance:none;appearance:none;ma
 
       <div class="sec-hd" style="margin-top:20px;cursor:pointer" onclick="toggleAdmSection('sups')">
         <span class="sec-title"><span class="adm-arrow" id="adm-arrow-sups">▶</span> Suppliers</span>
-        <button onclick="event.stopPropagation();openAddSupplier()" style="padding:8px 14px;border-radius:10px;background:var(--blue);color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer">+ Add</button>
+        <button onclick="event.stopPropagation();toggleSupForm()" style="padding:8px 14px;border-radius:10px;background:var(--blue);color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer">+ Add</button>
       </div>
       <div id="adm-sec-sups" style="display:none">
+        <div id="sup-form" style="display:none;padding:14px;background:#f0f2f5;border-radius:12px;margin-bottom:10px">
+          <div style="font-size:12px;font-weight:700;margin-bottom:8px" id="sup-form-title">Add Supplier</div>
+          <input type="text" id="sup-name" placeholder="Supplier name" style="width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:none;background:#fff;font-size:14px;margin-bottom:8px">
+          <div style="font-size:11px;color:var(--text2);margin-bottom:6px">Categories (optional — select multiple)</div>
+          <div id="sup-cats" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+          <div style="display:flex;gap:8px">
+            <button onclick="saveSupplierForm()" style="flex:1;padding:10px;border-radius:10px;border:none;background:var(--blue);color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Save</button>
+            <button onclick="toggleSupForm(false)" style="padding:10px 16px;border-radius:10px;border:0.5px solid var(--border);background:#fff;font-size:13px;cursor:pointer;font-family:inherit">Cancel</button>
+          </div>
+        </div>
         <div class="scard" id="adm-sup-list"><div style="padding:16px;text-align:center;color:var(--text2)">Loading...</div></div>
       </div>
     </div>
@@ -3410,7 +3420,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.2.3';
+var APP_VER='1.2.4';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4783,36 +4793,42 @@ function renderSuppliers(){
         (s.category?'<div style="font-size:11px;color:var(--text2)">🏷️ '+s.category+'</div>':'')+
         '</div>'+
         '<div style="display:flex;gap:6px">'+
-          '<button onclick="editSupplier(\''+s.id+'\')" style="padding:5px 10px;border-radius:8px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;cursor:pointer">✏️</button>'+
+          '<button onclick="toggleSupForm(true,\''+s.id+'\')" style="padding:5px 10px;border-radius:8px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;cursor:pointer">✏️</button>'+
           '<button onclick="delSupplier(\''+s.id+'\',\''+s.name.replace(/'/g,"\\'")+'\')" style="padding:5px 10px;border-radius:8px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;cursor:pointer">🗑️</button>'+
         '</div></div>';
     }).join('');
   });
 }
-function openAddSupplier(){
-  var name=prompt('Supplier name:');if(!name)return;
-  // Build category list from existing categories
+var SUP_EDIT_ID=null;
+function toggleSupForm(show,editId){
+  var f=g('sup-form');if(!f)return;
+  var sec=g('adm-sec-sups');if(sec&&sec.style.display==='none'){sec.style.display='block';renderSuppliers();}
+  if(show===false){f.style.display='none';SUP_EDIT_ID=null;return;}
+  f.style.display=f.style.display==='none'?'block':'none';
+  if(f.style.display==='none'){SUP_EDIT_ID=null;return;}
+  SUP_EDIT_ID=editId||null;
+  g('sup-form-title').textContent=SUP_EDIT_ID?'Edit Supplier':'Add Supplier';
+  var s=SUP_EDIT_ID?(SUPPLIERS_CACHE||[]).find(function(x){return x.id===SUP_EDIT_ID;}):null;
+  g('sup-name').value=s?s.name:'';
+  // Render category checkboxes
   var cats=(typeof CATS!=='undefined'&&CATS)?CATS:[];
-  var catList=cats.map(function(c,i){return (i+1)+'. '+c.name;}).join('\n');
-  var catInput=prompt('Select category:\n'+catList+'\n\nType number or name:');
-  var cat='';
-  if(catInput){var idx=parseInt(catInput);if(idx>0&&idx<=cats.length)cat=cats[idx-1].name;else cat=catInput;}
-  ov('Adding...');
-  api('addSupplier',{name:name,category:cat}).then(function(r){
-    cv();if(r&&r.ok){SUPPLIERS_CACHE=null;renderSuppliers();}else alert(r&&r.msg||'Error');
-  });
+  var selCats=s&&s.category?s.category.split(',').map(function(c){return c.trim();}):[];
+  g('sup-cats').innerHTML=cats.map(function(c){
+    var checked=selCats.indexOf(c.name)>=0?'checked':'';
+    return '<label style="display:flex;align-items:center;gap:4px;padding:6px 10px;border-radius:8px;background:#fff;border:1px solid var(--border);font-size:12px;cursor:pointer"><input type="checkbox" class="sup-cat-cb" value="'+c.name+'" '+checked+'> '+(c.icon||'')+' '+c.name+'</label>';
+  }).join('')||'<span style="color:var(--text2);font-size:12px">No categories created yet</span>';
+  g('sup-name').focus();
 }
-function editSupplier(id){
-  var s=(SUPPLIERS_CACHE||[]).find(function(x){return x.id===id;});if(!s)return;
-  var name=prompt('Name:',s.name);if(!name)return;
-  var cats=(typeof CATS!=='undefined'&&CATS)?CATS:[];
-  var catList=cats.map(function(c,i){return (i+1)+'. '+c.name;}).join('\n');
-  var catInput=prompt('Category:\n'+catList+'\n\nCurrent: '+(s.category||'none')+'\nType number, name, or leave blank to keep:');
-  var cat=s.category||'';
-  if(catInput){var idx=parseInt(catInput);if(idx>0&&idx<=cats.length)cat=cats[idx-1].name;else cat=catInput;}
+function saveSupplierForm(){
+  var name=g('sup-name').value.trim();if(!name){alert('Enter supplier name');return;}
+  var cbs=document.querySelectorAll('.sup-cat-cb:checked');
+  var cats=[];cbs.forEach(function(cb){cats.push(cb.value);});
+  var cat=cats.join(', ');
   ov('Saving...');
-  api('updateSupplier',{id:id,name:name,category:cat}).then(function(r){
-    cv();if(r&&r.ok){SUPPLIERS_CACHE=null;renderSuppliers();}else alert(r&&r.msg||'Error');
+  var action=SUP_EDIT_ID?'updateSupplier':'addSupplier';
+  var params=SUP_EDIT_ID?{id:SUP_EDIT_ID,name:name,category:cat}:{name:name,category:cat};
+  api(action,params).then(function(r){
+    cv();if(r&&r.ok){SUPPLIERS_CACHE=null;toggleSupForm(false);renderSuppliers();}else alert(r&&r.msg||'Error');
   });
 }
 function delSupplier(id,name){
