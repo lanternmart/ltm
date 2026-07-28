@@ -3420,7 +3420,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.2.4';
+var APP_VER='1.2.5';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4824,19 +4824,24 @@ function saveSupplierForm(){
   var cbs=document.querySelectorAll('.sup-cat-cb:checked');
   var cats=[];cbs.forEach(function(cb){cats.push(cb.value);});
   var cat=cats.join(', ');
-  ov('Saving...');
-  var action=SUP_EDIT_ID?'updateSupplier':'addSupplier';
-  var params=SUP_EDIT_ID?{id:SUP_EDIT_ID,name:name,category:cat}:{name:name,category:cat};
-  api(action,params).then(function(r){
-    cv();if(r&&r.ok){SUPPLIERS_CACHE=null;toggleSupForm(false);renderSuppliers();}else alert(r&&r.msg||'Error');
-  });
+  // Instant: update cache + render, API in background
+  if(!SUPPLIERS_CACHE)SUPPLIERS_CACHE=[];
+  if(SUP_EDIT_ID){
+    var s=SUPPLIERS_CACHE.find(function(x){return x.id===SUP_EDIT_ID;});
+    if(s){s.name=name;s.category=cat;}
+    api('updateSupplier',{id:SUP_EDIT_ID,name:name,category:cat});
+  } else {
+    var tmpId='sup_'+Date.now();
+    SUPPLIERS_CACHE.push({id:tmpId,name:name,phone:'',address:'',category:cat,active:true});
+    api('addSupplier',{name:name,category:cat});
+  }
+  toggleSupForm(false);renderSuppliers();
 }
 function delSupplier(id,name){
   if(!confirm('Delete supplier "'+name+'"?'))return;
-  ov('Deleting...');
-  api('deleteSupplier',{id:id}).then(function(r){
-    cv();if(r&&r.ok){SUPPLIERS_CACHE=null;renderSuppliers();}else alert(r&&r.msg||'Error');
-  });
+  if(SUPPLIERS_CACHE)SUPPLIERS_CACHE=SUPPLIERS_CACHE.filter(function(x){return x.id!==id;});
+  renderSuppliers();
+  api('deleteSupplier',{id:id});
 }
 function populateSupplierSelect(selId,currentVal){
   var sel=g(selId);if(!sel)return;
