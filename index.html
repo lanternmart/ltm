@@ -901,7 +901,7 @@ input[type="date"],input[type="time"]{-webkit-appearance:none;appearance:none;ma
       </div>
 
       <div class="sec-hd" style="margin-top:20px;cursor:pointer" onclick="toggleAdmSection('sups')">
-        <span class="sec-title"><span class="adm-arrow" id="adm-arrow-sups">▶</span> Suppliers</span>
+        <span class="sec-title"><span class="adm-arrow" id="adm-arrow-sups">▼</span> Suppliers</span>
         <button onclick="event.stopPropagation();toggleSupForm()" style="padding:8px 14px;border-radius:10px;background:var(--blue);color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer">+ Add</button>
       </div>
       <div id="adm-sec-sups">
@@ -2802,8 +2802,9 @@ function toggleAdmSection(which){
   ADM_COLLAPSED[which]=!ADM_COLLAPSED[which];
   var sec=g('adm-sec-'+which), arr=g('adm-arrow-'+which);
   if(sec) sec.style.display=ADM_COLLAPSED[which]?'none':'';
-  if(arr) arr.style.display='inline-block', arr.style.transform=ADM_COLLAPSED[which]?'rotate(-90deg)':'';
+  if(arr) arr.textContent=ADM_COLLAPSED[which]?'▶':'▼';
   if(which==='cats' && !ADM_COLLAPSED[which]) renderCatList();
+  if(which==='sups' && !ADM_COLLAPSED[which]) renderSuppliers();
 }
 
 // ── Category management ──
@@ -3420,7 +3421,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.2.7';
+var APP_VER='1.2.8';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
