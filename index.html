@@ -904,7 +904,7 @@ input[type="date"],input[type="time"]{-webkit-appearance:none;appearance:none;ma
         <span class="sec-title"><span class="adm-arrow" id="adm-arrow-sups">▶</span> Suppliers</span>
         <button onclick="event.stopPropagation();toggleSupForm()" style="padding:8px 14px;border-radius:10px;background:var(--blue);color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer">+ Add</button>
       </div>
-      <div id="adm-sec-sups" style="display:none">
+      <div id="adm-sec-sups">
         <div id="sup-form" style="display:none;padding:14px;background:#f0f2f5;border-radius:12px;margin-bottom:10px">
           <div style="font-size:12px;font-weight:700;margin-bottom:8px" id="sup-form-title">Add Supplier</div>
           <input type="text" id="sup-name" placeholder="Supplier name" style="width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:none;background:#fff;font-size:14px;margin-bottom:8px">
@@ -2797,9 +2797,8 @@ function setAdmFilter(cat,el){
   el.classList.add('active');
   renderAdmin();
 }
-var ADM_COLLAPSED={};
+var ADM_COLLAPSED={users:false,items:false,cats:false,sups:false};
 function toggleAdmSection(which){
-  if(which==='sups'){var sec=g('adm-sec-sups');if(sec&&sec.style.display==='none')renderSuppliers();}
   ADM_COLLAPSED[which]=!ADM_COLLAPSED[which];
   var sec=g('adm-sec-'+which), arr=g('adm-arrow-'+which);
   if(sec) sec.style.display=ADM_COLLAPSED[which]?'none':'';
@@ -3020,6 +3019,7 @@ function stocktakeExportPDF(){
 }
 
 function renderAdmin(){
+  renderSuppliers();
   var items = (admCatFilter ? INV.filter(function(i){return i.cat===admCatFilter;}) : INV.slice()).sort(function(a,b){return (a.name||'').localeCompare(b.name||'');});
   g('adm-inv-list').innerHTML=items.map(function(i){
     var supId = i.supplierSku ? '<span>ID: '+escHtmlPk(String(i.supplierSku))+'</span>' : '';
@@ -3420,7 +3420,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.2.5';
+var APP_VER='1.2.7';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4802,7 +4802,6 @@ function renderSuppliers(){
 var SUP_EDIT_ID=null;
 function toggleSupForm(show,editId){
   var f=g('sup-form');if(!f)return;
-  var sec=g('adm-sec-sups');if(sec&&sec.style.display==='none'){sec.style.display='block';renderSuppliers();}
   if(show===false){f.style.display='none';SUP_EDIT_ID=null;return;}
   f.style.display=f.style.display==='none'?'block':'none';
   if(f.style.display==='none'){SUP_EDIT_ID=null;return;}
