@@ -3421,7 +3421,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.2.11';
+var APP_VER='1.2.12';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4989,26 +4989,9 @@ async function revLoadRange(){
 function revRenderUI(){
   if(!REV_SEL_FROM||!REV_SEL_TO)return;
   var dates=revDateList(),totCard=0,totCashLS=0,totCashAct=0,DAY=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  // Pre-calc daily wages using SAME logic as payroll (single source of truth)
+  // Daily wages from payroll (single source of truth — matches payroll report exactly)
   var w=revCalcWagesDetailed(dates);
-  var dailyWages={};
-  if(ATTENDANCE&&ATTENDANCE.length&&ALL_USERS_CACHE){
-    var dateSet={};dates.forEach(function(ds){dateSet[ds]=true;});
-    ATTENDANCE.forEach(function(a){
-      var ad=localDateStr(safeNewDate(a.date));
-      if(!dateSet[ad]||!a.checkOut)return;
-      var hrs=parseFloat(a.hoursWorked)||0;
-      var uu=ALL_USERS_CACHE.find(function(u){return u.username===a.username;});
-      var rate=uu?parseFloat(uu.hourlyRate)||0:0;
-      dailyWages[ad]=Math.round(((dailyWages[ad]||0)+hrs*rate)*100)/100;
-    });
-  }
-  // Reconcile: scale daily wages so total matches payroll exactly
-  var dailySum=0;Object.keys(dailyWages).forEach(function(k){dailySum+=dailyWages[k];});
-  if(dailySum>0&&w.total>0&&Math.abs(dailySum-w.total)>0.01){
-    var ratio=w.total/dailySum;
-    Object.keys(dailyWages).forEach(function(k){dailyWages[k]=Math.round(dailyWages[k]*ratio*100)/100;});
-  }
+  var dailyWages=w.daily||{};
   var expenses=revGetExp(),expTotal=expenses.reduce(function(s,e){return s+(parseFloat(e.amount)||0);},0);
   var vegeList=revGetVege(),vegeTotal=vegeList.reduce(function(s,v){return s+(parseFloat(v.amount)||0);},0);
   var maxRevLS=0,rows=dates.map(function(ds){
@@ -5099,12 +5082,12 @@ function revFmt(n){return '$'+(Number(n)||0).toFixed(2);}
 
 // ── Wages ──
 function revCalcWagesDetailed(dates){
-  if(!ATTENDANCE||!ATTENDANCE.length)return{total:0,bank:0,cash:0,lines:[]};
-  var set={};dates.forEach(function(ds){set[ds]=true;});var byUser={};
-  ATTENDANCE.forEach(function(a){var ad=localDateStr(safeNewDate(a.date));if(!set[ad]||!a.checkOut)return;var hrs=parseFloat(a.hoursWorked)||0;if(!byUser[a.username])byUser[a.username]={hrs:0,rate:0,bankHrs:0,name:a.username};byUser[a.username].hrs+=hrs;});
-  var total=0,bank=0,lines=[];
-  if(ALL_USERS_CACHE&&ALL_USERS_CACHE.length){ALL_USERS_CACHE.forEach(function(uu){var bu=byUser[uu.username];if(!bu)return;bu.rate=parseFloat(uu.hourlyRate)||0;bu.bankAmt=parseFloat(uu.bankAmount)||0;bu.name=uu.fullname||uu.username;var gross=bu.hrs*bu.rate;var bankPay=Math.min(bu.bankAmt,gross);total+=gross;bank+=bankPay;lines.push({name:bu.name,hrs:bu.hrs,rate:bu.rate,gross:gross,bankPay:bankPay,cashPay:gross-bankPay,bankAmt:bu.bankAmt});});}
-  return{total:Math.round(total*100)/100,bank:Math.round(bank*100)/100,cash:Math.round((total-bank)*100)/100,lines:lines};
+  if(!ATTENDANCE||!ATTENDANCE.length)return{total:0,bank:0,cash:0,lines:[],daily:{}};
+  var set={};dates.forEach(function(ds){set[ds]=true;});var byUser={};var dailyHrs={};
+  ATTENDANCE.forEach(function(a){var ad=localDateStr(safeNewDate(a.date));if(!set[ad]||!a.checkOut)return;var hrs=parseFloat(a.hoursWorked)||0;if(!byUser[a.username])byUser[a.username]={hrs:0,rate:0,bankHrs:0,name:a.username,daily:{}};byUser[a.username].hrs+=hrs;if(!byUser[a.username].daily[ad])byUser[a.username].daily[ad]=0;byUser[a.username].daily[ad]+=hrs;});
+  var total=0,bank=0,lines=[],daily={};
+  if(ALL_USERS_CACHE&&ALL_USERS_CACHE.length){ALL_USERS_CACHE.forEach(function(uu){var bu=byUser[uu.username];if(!bu)return;bu.rate=parseFloat(uu.hourlyRate)||0;bu.bankAmt=parseFloat(uu.bankAmount)||0;bu.name=uu.fullname||uu.username;var gross=bu.hrs*bu.rate;var bankPay=Math.min(bu.bankAmt,gross);total+=gross;bank+=bankPay;lines.push({name:bu.name,hrs:bu.hrs,rate:bu.rate,gross:gross,bankPay:bankPay,cashPay:gross-bankPay,bankAmt:bu.bankAmt});Object.keys(bu.daily).forEach(function(d){daily[d]=Math.round(((daily[d]||0)+bu.daily[d]*bu.rate)*100)/100;});});}
+  return{total:Math.round(total*100)/100,bank:Math.round(bank*100)/100,cash:Math.round((total-bank)*100)/100,lines:lines,daily:daily};
 }
 
 // ── Vege Petty Cash ──
