@@ -3421,7 +3421,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.2.12';
+var APP_VER='1.2.13';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -5083,10 +5083,35 @@ function revFmt(n){return '$'+(Number(n)||0).toFixed(2);}
 // ── Wages ──
 function revCalcWagesDetailed(dates){
   if(!ATTENDANCE||!ATTENDANCE.length)return{total:0,bank:0,cash:0,lines:[],daily:{}};
-  var set={};dates.forEach(function(ds){set[ds]=true;});var byUser={};var dailyHrs={};
-  ATTENDANCE.forEach(function(a){var ad=localDateStr(safeNewDate(a.date));if(!set[ad]||!a.checkOut)return;var hrs=parseFloat(a.hoursWorked)||0;if(!byUser[a.username])byUser[a.username]={hrs:0,rate:0,bankHrs:0,name:a.username,daily:{}};byUser[a.username].hrs+=hrs;if(!byUser[a.username].daily[ad])byUser[a.username].daily[ad]=0;byUser[a.username].daily[ad]+=hrs;});
-  var total=0,bank=0,lines=[],daily={};
-  if(ALL_USERS_CACHE&&ALL_USERS_CACHE.length){ALL_USERS_CACHE.forEach(function(uu){var bu=byUser[uu.username];if(!bu)return;bu.rate=parseFloat(uu.hourlyRate)||0;bu.bankAmt=parseFloat(uu.bankAmount)||0;bu.name=uu.fullname||uu.username;var gross=bu.hrs*bu.rate;var bankPay=Math.min(bu.bankAmt,gross);total+=gross;bank+=bankPay;lines.push({name:bu.name,hrs:bu.hrs,rate:bu.rate,gross:gross,bankPay:bankPay,cashPay:gross-bankPay,bankAmt:bu.bankAmt});Object.keys(bu.daily).forEach(function(d){daily[d]=Math.round(((daily[d]||0)+bu.daily[d]*bu.rate)*100)/100;});});}
+  var set={};dates.forEach(function(ds){set[ds]=true;});var byUser={};var daily={};
+  // Use SAME logic as payroll: calcHrsStr + calcGross + approved/modified only
+  ATTENDANCE.forEach(function(a){
+    var ad=localDateStr(safeNewDate(a.date));
+    if(!set[ad])return;
+    if(a.status!=='Approved'&&a.status!=='Modified')return;
+    if(!a.checkIn||!a.checkOut)return;
+    var hrs=calcHrsStr(safeTime(a.checkIn),safeTime(a.checkOut));
+    if(!byUser[a.username])byUser[a.username]={hrs:0,rate:0,bankAmt:0,name:a.username,daily:{}};
+    byUser[a.username].hrs+=hrs;
+    if(!byUser[a.username].daily[ad])byUser[a.username].daily[ad]=0;
+    byUser[a.username].daily[ad]+=hrs;
+  });
+  var total=0,bank=0,lines=[];
+  if(ALL_USERS_CACHE&&ALL_USERS_CACHE.length){ALL_USERS_CACHE.forEach(function(uu){
+    var bu=byUser[uu.username];if(!bu)return;
+    bu.rate=parseFloat(uu.hourlyRate)||0;
+    bu.bankAmt=parseFloat(uu.bankAmount)||0;
+    bu.name=uu.fullname||uu.username;
+    var gross=bu.hrs*bu.rate;
+    var bankPay=Math.min(bu.bankAmt,gross);
+    total+=gross;bank+=bankPay;
+    // Daily wages per user
+    Object.keys(bu.daily).forEach(function(d){
+      var dayHrs=bu.daily[d];
+      daily[d]=Math.round(((daily[d]||0)+dayHrs*bu.rate)*100)/100;
+    });
+    lines.push({name:bu.name,hrs:bu.hrs,rate:bu.rate,gross:gross,bankPay:bankPay,cashPay:gross-bankPay,bankAmt:bu.bankAmt});
+  });}
   return{total:Math.round(total*100)/100,bank:Math.round(bank*100)/100,cash:Math.round((total-bank)*100)/100,lines:lines,daily:daily};
 }
 
