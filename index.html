@@ -3421,7 +3421,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.2.10';
+var APP_VER='1.2.11';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -5032,7 +5032,7 @@ function revRenderUI(){
     var wowHtml='';if(prevData[r.ds]&&prevData[r.ds]>0){var wp=Math.round((r.revLS-prevData[r.ds])/prevData[r.ds]*100);wowHtml=' <span style="font-size:10px;color:'+(wp>=0?'var(--green)':'var(--red)')+';font-weight:700">'+(wp>=0?'+':'')+wp+'%</span>';}
     return '<div style="padding:10px 14px;border-bottom:1px solid var(--border)"><div style="display:flex;align-items:center;gap:10px">'+
       '<div style="width:34px;text-align:center;flex-shrink:0"><div style="font-size:11px;color:'+dnCol+';font-weight:600">'+dn+'</div><div style="font-size:14px;font-weight:700">'+dt.getDate()+'</div><div style="font-size:10px;color:var(--text3)">'+dt.toLocaleDateString('en-AU',{month:'short'})+'</div></div>'+
-      '<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:12px;font-weight:700;color:var(--green)">Rev '+revFmt(r.revLS)+wowHtml+'</span><span style="font-size:12px;font-weight:700;color:var(--red)">Wage '+revFmt(r.dayWage)+'</span><span style="font-size:12px;font-weight:700;color:'+(r.remainCash>=0?'var(--green)':'var(--red)')+'">Rem '+revFmt(r.remainCash)+'</span></div>'+
+      '<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:12px;font-weight:700;color:var(--green)">Rev '+revFmt(r.revLS)+wowHtml+'</span><span style="font-size:12px;font-weight:700;color:var(--blue)">Wage '+revFmt(r.dayWage)+'</span><span style="font-size:12px;font-weight:700;color:'+(r.remainCash>=0?'var(--green)':'var(--red)')+'">Rem '+revFmt(r.remainCash)+'</span></div>'+
       '<div style="height:4px;background:var(--bg);border-radius:3px;overflow:hidden"><div style="height:100%;background:var(--blue);border-radius:3px;width:'+pct+'%"></div></div></div>'+
       '<button onclick="revEditDay(\''+r.ds+'\','+idx+')" style="padding:5px 9px;border-radius:8px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;cursor:pointer;flex-shrink:0">\u270F\uFE0F</button></div>'+
       '<div id="rev-edit-'+idx+'" style="display:none;margin-top:8px;padding:10px;background:#f0f2f5;border-radius:10px"><div style="font-size:11px;color:var(--text2);margin-bottom:6px">'+dn+' '+dt.getDate()+'</div>'+
