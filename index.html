@@ -3421,7 +3421,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.2.15';
+var APP_VER='1.2.16';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4059,8 +4059,17 @@ function renderPayrollReportTable(){
   while(cur<=end){cols.push(localDateStr(cur));cur.setDate(cur.getDate()+1);}
   var DS=['Su','Mo','Tu','We','Th','Fr','Sa'];
 
-  // Load users with payroll data
-  api('getUsers').then(function(r){
+  // Load users + attendance for the selected period
+  Promise.all([
+    api('getUsers'),
+    api('getAttendance',{username:'',dateFrom:from,dateTo:to})
+  ]).then(function(res){
+    var r=res[0];
+    // Merge fetched attendance into global ATTENDANCE
+    if(res[1]&&res[1].ok&&res[1].data){
+      var ids={};ATTENDANCE.forEach(function(a){ids[a.id]=true;});
+      res[1].data.forEach(function(a){if(!ids[a.id]){ATTENDANCE.push(a);}});
+    }
     try {
     var staffList=(r.ok&&r.data?r.data:[]).filter(function(u){return (u.role==='staff'||u.role==='mod'||u.role==='admin')&&u.active==='TRUE';});
     if(!staffList.length){stopLoading();wrap.innerHTML='<div style="padding:16px;text-align:center;color:var(--text2)">No staff found</div>';return;}
