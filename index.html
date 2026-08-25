@@ -3421,7 +3421,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.2.14';
+var APP_VER='1.2.15';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4958,8 +4958,14 @@ async function revFetchRange(){
       api('getCashExpenses',{weekFrom:REV_WEEK_FROM,weekTo:REV_WEEK_TO}),
       api('getVegePettyCash',{weekFrom:REV_WEEK_FROM,weekTo:REV_WEEK_TO}),
       api('getCashFlowBalance',{weekEnd:revPrevWeekEnd()}),
-      api('getRevenueData',{dateFrom:localDateStr(prevMon),dateTo:localDateStr(prevSun)})
+      api('getRevenueData',{dateFrom:localDateStr(prevMon),dateTo:localDateStr(prevSun)}),
+      api('getAttendance',{username:'',dateFrom:REV_WEEK_FROM,dateTo:REV_WEEK_TO})
     ]);
+    // Merge fetched attendance into ATTENDANCE (for old weeks not loaded at boot)
+    if(results[5]&&results[5].ok&&results[5].data){
+      var ids={};ATTENDANCE.forEach(function(a){ids[a.id]=true;});
+      results[5].data.forEach(function(a){if(!ids[a.id]){ATTENDANCE.push(a);}});
+    }
     // Only overwrite cache if API returned real data (preserve local edits on failure)
     if(results[0]&&results[0].ok&&results[0].data){
       var newDays={};
