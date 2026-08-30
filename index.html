@@ -3035,10 +3035,11 @@ function renderAdmin(){
       '</div></div>';
   }).join('')||'<div class="empty-state"><p>No items'+(admCatFilter?' in this category':' yet')+'</p></div>';
 
-  api('getUsers').then(function(r){
-    if(!r.ok||!r.data)return;
-    ADM_USERS=r.data; // cache for edit lookups (allowedMenus etc.)
-    g('adm-usr-list').innerHTML=r.data.map(function(u){
+  // Use cached users (avoid slow API call on every admin tab open)
+  var renderUserList=function(data){
+    ADM_USERS=data;
+    ALL_USERS_CACHE=data; // keep revenue wage calc in sync
+    g('adm-usr-list').innerHTML=data.map(function(u){
       var av=u.fullname?u.fullname[0].toUpperCase():'?';
       var isSelf = U && U.username===u.username;
       return '<div class="user-row"><div class="user-av">'+av+'</div>'+
@@ -3047,7 +3048,9 @@ function renderAdmin(){
         '<button onclick="openEditUser(\''+u.username+'\',\''+u.fullname+'\',\''+u.role+'\','+( u.hourlyRate||0)+','+(u.satRate||1.25)+','+(u.sunRate||1.5)+','+(u.phRate||2.0)+','+(u.superRate!==undefined?u.superRate:11.5)+','+(u.dailyRate||0)+')" style="padding:7px 12px;border-radius:9px;border:1px solid var(--border);background:#f9fafb;font-size:12px;cursor:pointer;font-weight:600;flex-shrink:0">Edit</button>'+
         '</div>';
     }).join('');
-  });
+  };
+  if(ALL_USERS_CACHE&&ALL_USERS_CACHE.length){renderUserList(ALL_USERS_CACHE);}
+  else{api('getUsers').then(function(r){if(r.ok&&r.data)renderUserList(r.data);});}
   renderCatList();
 }
 var ADM_USERS=[];
@@ -3348,14 +3351,14 @@ function saveUser(){
         if(REAL_ADMIN && String(REAL_ADMIN.username).toLowerCase()===String(id).toLowerCase()) REAL_ADMIN.username=un;
         try{ localStorage.setItem('wr_session', JSON.stringify(U)); }catch(e){}
       }
-      ALL_USERS_CACHE=[];// force reload on next loadAll
-      cm('m-user');renderAdmin();
+      ALL_USERS_CACHE=null;
+      api('getUsers').then(function(ur){if(ur.ok&&ur.data)ALL_USERS_CACHE=ur.data;cm('m-user');renderAdmin();});
     });
   } else {
     api('addUser',{username:un,password:pw,fullname:ht,role:role,actingUser:(REAL_ADMIN?REAL_ADMIN.username:U?U.username:''),hourlyRate:rate,satRate:sat,sunRate:sun,phRate:ph,superRate:superR,dailyRate:daily,allowedMenus:allowedMenus,empType:empType,bankAmount:bankAmount}).then(function(r){
       hov();if(!r.ok){showMsg('u-msg','err','❌ '+r.msg);return;}
-      ALL_USERS_CACHE=[];
-      cm('m-user');renderAdmin();
+      ALL_USERS_CACHE=null;
+      api('getUsers').then(function(ur){if(ur.ok&&ur.data)ALL_USERS_CACHE=ur.data;cm('m-user');renderAdmin();});
     });
   }
 }
@@ -4895,8 +4898,8 @@ function recentWeeksRange(n){
 
 // ── Suppliers cache ──
 var SUPPLIERS_CACHE=null;
-async function loadSuppliers(){
-  if(SUPPLIERS_CACHE)return SUPPLIERS_CACHE;
+async function loadSuppliers(forceRefresh){
+  if(SUPPLIERS_CACHE&&!forceRefresh)return SUPPLIERS_CACHE;
   try{var r=await api('getSuppliers');if(r&&r.ok)SUPPLIERS_CACHE=r.data||[];else SUPPLIERS_CACHE=[];}catch(e){SUPPLIERS_CACHE=[];}
   return SUPPLIERS_CACHE;
 }
