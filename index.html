@@ -1523,12 +1523,14 @@ function loadAll(){
   var p1=api('getInventory');
   var attRange=recentWeeksRange(2);var p3=api('getAttendance',{username:((REAL_ADMIN&&REAL_ADMIN.role==='admin')||(U&&U.role==='mod'))?'':U.username,dateFrom:attRange.from,dateTo:attRange.to});
   var p4=api('getCategories');
+  var p5=api('getUsers');
 
-  Promise.all([p1,p3,p4]).then(function(results){
-    var r1=results[0], r3=results[1], r4=results[2];
+  Promise.all([p1,p3,p4,p5]).then(function(results){
+    var r1=results[0], r3=results[1], r4=results[2], r5=results[3];
     INV=(r1&&r1.ok&&r1.data)?r1.data:INV;
     ATTENDANCE=(r3&&r3.ok&&r3.data)?r3.data.map(function(a){return Object.assign({},a,{date:safeDate(a.date)});}):(Array.isArray(r3)?r3.map(function(a){return Object.assign({},a,{date:safeDate(a.date)});}):ATTENDANCE); 
     CATEGORIES=(r4&&r4.ok&&r4.data&&r4.data.length)?r4.data:(CATEGORIES.length?CATEGORIES:[{name:'Dry Goods',icon:'🌾'},{name:'Frozen',icon:'❄️'},{name:'Beverage',icon:'🥤'},{name:'Meat',icon:'🥩'}]);
+    if(r5&&r5.ok&&r5.data) ALL_USERS_CACHE=r5.data;
     fillCategoryUI();
 
     try{
@@ -3424,7 +3426,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.2.16';
+var APP_VER='1.2.17';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
