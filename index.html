@@ -3426,7 +3426,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.2.19';
+var APP_VER='1.2.20';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -5628,7 +5628,7 @@ function checkVersionForce(){
 }
 // Check shortly after load (let the app paint first), then periodically + when refocused
 window.addEventListener('load', function(){
-  var vEl=document.getElementById('app-version'); if(vEl) vEl.textContent='v'+APP_VER;
+  var vEl=document.getElementById('app-version'); if(vEl){ var sp=vEl.querySelector('span'); if(sp) sp.textContent='v'+APP_VER; else vEl.textContent='v'+APP_VER; }
   setTimeout(checkVersionForce, 3000);
 });
 setInterval(checkVersionForce, 60000);
