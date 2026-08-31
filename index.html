@@ -552,7 +552,7 @@ input[type="date"],input[type="time"]{-webkit-appearance:none;appearance:none;ma
         <button class="snav-btn" id="bn-revenue" onclick="gp('revenue','Revenue')" style="display:none"><span class="snav-icon">💰</span><span>Revenue</span></button>
         <button class="snav-btn" id="bn-admin" onclick="gp('admin','Admin')" style="display:none"><span class="snav-icon">⚙️</span><span>Admin</span></button>
         <button class="snav-btn" id="bn-chpw" onclick="openChangePassword()" style="margin-top:auto"><span class="snav-icon">🔑</span><span>Passcode</span></button>
-        <div id="app-version" style="padding:10px 14px;font-size:10px;color:var(--text3);font-weight:600;letter-spacing:.04em;border-top:1px solid var(--border)"></div>
+        <div id="app-version" style="padding:10px 14px;font-size:10px;color:var(--text3);font-weight:600;letter-spacing:.04em;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><span></span><button onclick="forceReloadAll()" style="padding:4px 8px;border-radius:6px;border:0.5px solid var(--border);background:#f9fafb;font-size:10px;cursor:pointer;font-family:inherit">🔄 Reload</button></div>
       </div>
     </div>
     <button id="sidebar-toggle" onclick="toggleSidebar()" title="Toggle menu">‹</button>
@@ -3426,7 +3426,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.2.18';
+var APP_VER='1.2.19';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -5279,6 +5279,29 @@ function revExportPDF(){
 // ── Pull-to-refresh: re-fetch data and stay on current tab ──
 
 // ── Pull-to-refresh: re-fetch data and stay on current tab ──
+function forceReloadAll(){
+  ov('Reloading all data...');
+  try{localStorage.removeItem('wr_inv');localStorage.removeItem('wr_att');localStorage.removeItem('wr_tx');localStorage.removeItem('wr_cat');}catch(e){}
+  ALL_USERS_CACHE=[];SUPPLIERS_CACHE=null;REV_LAST_SAVE=0;REV_LAST_FETCH=0;
+  Promise.all([
+    api('getInventory'),
+    api('getAttendance',{username:''}),
+    api('getCategories'),
+    api('getUsers')
+  ]).then(function(results){
+    INV=(results[0]&&results[0].ok&&results[0].data)?results[0].data:[];
+    var attData=results[1];
+    ATTENDANCE=(attData&&attData.ok&&attData.data)?attData.data.map(function(a){return Object.assign({},a,{date:safeDate(a.date)});}):
+      (Array.isArray(attData)?attData.map(function(a){return Object.assign({},a,{date:safeDate(a.date)});}): []);
+    CATEGORIES=(results[2]&&results[2].ok&&results[2].data)?results[2].data:[];
+    if(results[3]&&results[3].ok&&results[3].data) ALL_USERS_CACHE=results[3].data;
+    fillCategoryUI();
+    try{localStorage.setItem('wr_inv',JSON.stringify(INV));localStorage.setItem('wr_att',JSON.stringify(ATTENDANCE));localStorage.setItem('wr_cat',JSON.stringify(CATEGORIES));}catch(e){}
+    quickRender();hov();
+    alert('✅ Loaded: '+INV.length+' items, '+ATTENDANCE.length+' attendance, '+ALL_USERS_CACHE.length+' users');
+  }).catch(function(e){hov();alert('Error: '+e.message);});
+}
+
 function ptrRefreshInPlace(){
   var activeEl=document.querySelector('.page.on');
   var activeId=activeEl?activeEl.id.replace('page-',''):'dash';
@@ -5527,7 +5550,7 @@ function switchAccount(username){
   if(U.role==='staff'||U.role==='mod') gp('checkin','Check In / Out');
   else gp('dash','Dashboard');
   // Set version label
-  var vEl=g('app-version'); if(vEl) vEl.textContent='v'+APP_VER;
+  var vEl=g('app-version'); if(vEl){ var sp=vEl.querySelector('span'); if(sp) sp.textContent='v'+APP_VER; else vEl.textContent='v'+APP_VER; }
   loadAll();
 }
 
