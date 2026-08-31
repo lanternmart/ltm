@@ -3426,7 +3426,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.2.22';
+var APP_VER='1.2.23';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -5284,11 +5284,13 @@ function forceReloadAll(){
   ov('Reloading all data...');
   try{localStorage.removeItem('wr_inv');localStorage.removeItem('wr_att');localStorage.removeItem('wr_tx');localStorage.removeItem('wr_cat');}catch(e){}
   ALL_USERS_CACHE=[];SUPPLIERS_CACHE=null;REV_LAST_SAVE=0;REV_LAST_FETCH=0;
+  REV_CACHE={days:{},exp:null,vege:null,bal:{}};
   Promise.all([
     api('getInventory'),
     api('getAttendance',{username:''}),
     api('getCategories'),
-    api('getUsers')
+    api('getUsers'),
+    api('getRevenueData',{dateFrom:'2025-01-01',dateTo:'2030-12-31'})
   ]).then(function(results){
     INV=(results[0]&&results[0].ok&&results[0].data)?results[0].data:[];
     var attData=results[1];
@@ -5296,14 +5298,18 @@ function forceReloadAll(){
       (Array.isArray(attData)?attData.map(function(a){return Object.assign({},a,{date:safeDate(a.date)});}): []);
     CATEGORIES=(results[2]&&results[2].ok&&results[2].data)?results[2].data:[];
     if(results[3]&&results[3].ok&&results[3].data) ALL_USERS_CACHE=results[3].data;
+    // Revenue data — load ALL into cache
+    var revData=results[4];
+    if(revData&&revData.ok&&revData.data){
+      revData.data.forEach(function(d){REV_CACHE.days[d.date]={card:parseFloat(d.card)||0,cashLS:parseFloat(d.cashLS)||0,cashActual:parseFloat(d.cashActual)||0};});
+    }
     fillCategoryUI();
     try{localStorage.setItem('wr_inv',JSON.stringify(INV));localStorage.setItem('wr_att',JSON.stringify(ATTENDANCE));localStorage.setItem('wr_cat',JSON.stringify(CATEGORIES));}catch(e){}
     quickRender();hov();
-    // Diagnostic: show date range of attendance data
     var attDates=ATTENDANCE.map(function(a){return a.date;}).filter(Boolean).sort();
-    var earliest=attDates[0]||'none',latest=attDates[attDates.length-1]||'none';
+    var revDates=Object.keys(REV_CACHE.days).sort();
     var bankInfo=ALL_USERS_CACHE.map(function(u){return u.username+':$'+(u.bankAmount||0);}).join(', ');
-    alert('✅ Loaded:\n'+INV.length+' items\n'+ATTENDANCE.length+' attendance records\n'+ALL_USERS_CACHE.length+' users\n\nAttendance range:\n'+earliest+' → '+latest+'\n\nBank amounts:\n'+bankInfo);
+    alert('✅ Loaded:\n'+INV.length+' items\n'+ATTENDANCE.length+' attendance\n'+ALL_USERS_CACHE.length+' users\n'+revDates.length+' revenue days\n\nAttendance: '+(attDates[0]||'none')+' → '+(attDates[attDates.length-1]||'none')+'\nRevenue: '+(revDates[0]||'none')+' → '+(revDates[revDates.length-1]||'none')+'\n\nBank: '+bankInfo);
   }).catch(function(e){hov();alert('Error: '+e.message);});
 }
 
