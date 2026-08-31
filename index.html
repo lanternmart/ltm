@@ -3426,7 +3426,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.2.21';
+var APP_VER='1.2.22';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -5142,8 +5142,9 @@ function revRenderExpenses(exp,total){var el=g('rev-expenses');if(!el)return;el.
 
 // ── Cashflow ──
 function revRenderCashflow(remain,cashIn,vege,wCash,exp,totalBal){var el=g('rev-cashflow');if(!el)return;var wk=revWeekNum(REV_SEL_FROM);function row(l,v,c,b){return '<div style="display:flex;justify-content:space-between;padding:7px 0;'+(b?'font-weight:700;font-size:15px;border-top:2px solid var(--border);padding-top:10px;margin-top:4px':'font-size:13px')+'"><span>'+l+'</span><span style="color:'+(c||'inherit')+'">'+revFmt(v)+'</span></div>';}
-  el.innerHTML=row('Remaining balance (prev week)',remain,'')+row('+ Cash-Sale (Week '+wk+')',cashIn,'var(--green)')+row('\u2212 Vege petty cash top-up',vege,'var(--amber)')+row('\u2212 Wages in cash',wCash,'var(--red)')+row('\u2212 Cash expenses',exp,'var(--red)')+row('= Total balance',totalBal,totalBal>=0?'var(--green)':'var(--red)',true)+'<div style="margin-top:8px"><button onclick="revEditBalance()" style="padding:6px 12px;border-radius:8px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">\u270F\uFE0F Adjust opening balance</button></div>';}
+  el.innerHTML=row('Remaining balance (prev week)',remain,'')+row('+ Cash-Sale (Week '+wk+')',cashIn,'var(--green)')+row('\u2212 Vege petty cash top-up',vege,'var(--amber)')+row('\u2212 Wages in cash',wCash,'var(--red)')+row('\u2212 Cash expenses',exp,'var(--red)')+row('= Total balance',totalBal,totalBal>=0?'var(--green)':'var(--red)',true)+'<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button onclick="revEditBalance()" style="padding:6px 12px;border-radius:8px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">\u270F\uFE0F Adjust balance</button><button onclick="revResetBalance()" style="padding:6px 12px;border-radius:8px;border:0.5px solid var(--border);background:#fff3f3;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--red)">Reset $0</button></div>';}
 function revEditBalance(){var cur=revGetBalance(revPrevWeekEnd());var val=prompt('Opening balance for this week:',cur);if(val===null)return;REV_CACHE.bal[revPrevWeekEnd()]=parseFloat(val)||0;revRenderUI();api('setCashFlowBalance',{weekEnd:revPrevWeekEnd(),balance:parseFloat(val)||0});}
+function revResetBalance(){if(!confirm('Reset opening balance to $0 for this week?'))return;REV_CACHE.bal[revPrevWeekEnd()]=0;revRenderUI();api('setCashFlowBalance',{weekEnd:revPrevWeekEnd(),balance:0});}
 
 // ── P&L ──
 function revRenderPnL(revLS,revActual,card,cashLS,cashActual,wages,bankW,cashW,exp,vege,profit){var el=g('rev-pnl');if(!el)return;function row(l,v,c,b){return '<div style="display:flex;justify-content:space-between;padding:8px 14px;border-bottom:1px solid var(--border);'+(b?'font-weight:700;font-size:15px':'font-size:13px')+'"><span>'+l+'</span><span style="color:'+(c||'inherit')+'">'+revFmt(v)+'</span></div>';}el.innerHTML=row('Revenue (Lightspeed)',revLS,'var(--green)')+row('Revenue (Actual)',revActual,'var(--green)')+row('Card',card,'var(--blue)')+row('Cash (Counted)',cashActual,'var(--amber)')+row('Cash (Lightspeed)',cashLS,'')+'<div style="height:1px;background:var(--border)"></div>'+row('\uD83D\uDC77 Wages (bank)',bankW,'')+row('\uD83D\uDC77 Wages (cash)',cashW,'var(--red)')+row('\uD83E\uDD6C Vege petty cash',vege,'var(--amber)')+row('\uD83D\uDCB8 Cash expenses',exp,'var(--red)')+row('Total costs',wages+exp+vege,'var(--red)',true)+'<div style="height:1px;background:var(--border)"></div>'+row(profit>=0?'\u2705 Profit':'\u274C Loss',profit,profit>=0?'var(--green)':'var(--red)',true);}
@@ -5298,7 +5299,11 @@ function forceReloadAll(){
     fillCategoryUI();
     try{localStorage.setItem('wr_inv',JSON.stringify(INV));localStorage.setItem('wr_att',JSON.stringify(ATTENDANCE));localStorage.setItem('wr_cat',JSON.stringify(CATEGORIES));}catch(e){}
     quickRender();hov();
-    alert('✅ Loaded: '+INV.length+' items, '+ATTENDANCE.length+' attendance, '+ALL_USERS_CACHE.length+' users');
+    // Diagnostic: show date range of attendance data
+    var attDates=ATTENDANCE.map(function(a){return a.date;}).filter(Boolean).sort();
+    var earliest=attDates[0]||'none',latest=attDates[attDates.length-1]||'none';
+    var bankInfo=ALL_USERS_CACHE.map(function(u){return u.username+':$'+(u.bankAmount||0);}).join(', ');
+    alert('✅ Loaded:\n'+INV.length+' items\n'+ATTENDANCE.length+' attendance records\n'+ALL_USERS_CACHE.length+' users\n\nAttendance range:\n'+earliest+' → '+latest+'\n\nBank amounts:\n'+bankInfo);
   }).catch(function(e){hov();alert('Error: '+e.message);});
 }
 
