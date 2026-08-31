@@ -1521,7 +1521,7 @@ function loadAll(){
 
   // ── WAVE 1 — only what the first screen needs (inventory + attendance + categories) ──
   var p1=api('getInventory');
-  var attRange=recentWeeksRange(2);var p3=api('getAttendance',{username:((REAL_ADMIN&&REAL_ADMIN.role==='admin')||(U&&U.role==='mod'))?'':U.username,dateFrom:attRange.from,dateTo:attRange.to});
+  var p3=api('getAttendance',{username:((REAL_ADMIN&&REAL_ADMIN.role==='admin')||(U&&U.role==='mod'))?'':U.username});
   var p4=api('getCategories');
   var p5=api('getUsers');
 
@@ -3426,7 +3426,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.2.17';
+var APP_VER='1.2.18';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4067,7 +4067,7 @@ function renderPayrollReportTable(){
   // Load users + attendance for the selected period
   Promise.all([
     api('getUsers'),
-    api('getAttendance',{username:'',dateFrom:from,dateTo:to})
+    api('getAttendance',{username:''})
   ]).then(function(res){
     var r=res[0];
     // Merge fetched attendance into global ATTENDANCE
@@ -4757,7 +4757,7 @@ function saveEditAttendance(id){
 
 // Reload attendance from server and re-render payroll
 function reloadAttendance(cb){
-  api('getAttendance',{username:'',dateFrom:recentWeeksRange(4).from,dateTo:recentWeeksRange(4).to}).then(function(r){
+  api('getAttendance',{username:''}).then(function(r){
     if(r.ok&&r.data){
       ATTENDANCE=r.data.map(function(a){return Object.assign({},a,{date:safeDate(a.date)});});
     }
@@ -4972,14 +4972,8 @@ async function revFetchRange(){
       api('getCashExpenses',{weekFrom:REV_WEEK_FROM,weekTo:REV_WEEK_TO}),
       api('getVegePettyCash',{weekFrom:REV_WEEK_FROM,weekTo:REV_WEEK_TO}),
       api('getCashFlowBalance',{weekEnd:revPrevWeekEnd()}),
-      api('getRevenueData',{dateFrom:localDateStr(prevMon),dateTo:localDateStr(prevSun)}),
-      api('getAttendance',{username:'',dateFrom:REV_WEEK_FROM,dateTo:REV_WEEK_TO})
+      api('getRevenueData',{dateFrom:localDateStr(prevMon),dateTo:localDateStr(prevSun)})
     ]);
-    // Merge fetched attendance into ATTENDANCE (for old weeks not loaded at boot)
-    if(results[5]&&results[5].ok&&results[5].data){
-      var ids={};ATTENDANCE.forEach(function(a){ids[a.id]=true;});
-      results[5].data.forEach(function(a){if(!ids[a.id]){ATTENDANCE.push(a);}});
-    }
     // Only overwrite cache if API returned real data (preserve local edits on failure)
     if(results[0]&&results[0].ok&&results[0].data){
       var newDays={};
@@ -5289,7 +5283,7 @@ function ptrRefreshInPlace(){
   var activeEl=document.querySelector('.page.on');
   var activeId=activeEl?activeEl.id.replace('page-',''):'dash';
   var p1=api('getInventory');
-  var attRange=recentWeeksRange(2);var p3=api('getAttendance',{username:((REAL_ADMIN&&REAL_ADMIN.role==='admin')||(U&&U.role==='mod'))?'':U.username,dateFrom:attRange.from,dateTo:attRange.to});
+  var p3=api('getAttendance',{username:((REAL_ADMIN&&REAL_ADMIN.role==='admin')||(U&&U.role==='mod'))?'':U.username});
   var p4=api('getCategories');
   return Promise.all([p1,p3,p4]).then(function(results){
     var r1=results[0],r3=results[1],r4=results[2];
