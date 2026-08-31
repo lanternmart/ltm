@@ -2768,11 +2768,11 @@ function renderAna(){
   if(toggleBtn){ toggleBtn.textContent = hidden ? '🙈' : '👁️'; toggleBtn.title = hidden ? 'Show history' : 'Hide history'; }
 
   if(hidden){
-    g('tx-list-ana').innerHTML='<div class="empty-state" style="padding:24px 16px"><p>History hidden — tap 🙈 above to show it again</p></div>';
+    var _txEl=g('tx-list-ana');if(!_txEl)return;_txEl.innerHTML='<div class="empty-state" style="padding:24px 16px"><p>History hidden — tap 🙈 above to show it again</p></div>';
     return;
   }
 
-  g('tx-list-ana').innerHTML=TX.slice(0,40).map(function(t){
+  var _txEl=g('tx-list-ana');if(!_txEl)return;_txEl.innerHTML=TX.slice(0,40).map(function(t){
     var isIn=t.type==='Stock In';
     return '<div class="tx-row"><div class="tx-badge '+(isIn?'txb-in':'txb-out')+'">'+(isIn?'↓':'↑')+'</div>'+
       '<div class="tx-info"><div class="tx-name">'+t.itemName+'</div><div class="tx-meta">'+skuTag(t.sku)+' '+t.time+' · '+t.user+(t.note?' · '+t.note:'')+'</div></div>'+
@@ -3426,7 +3426,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.2.20';
+var APP_VER='1.2.21';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
