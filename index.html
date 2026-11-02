@@ -791,6 +791,7 @@ input[type="date"],input[type="time"]{-webkit-appearance:none;appearance:none;ma
         <div style="margin-top:10px;display:flex;gap:8px;align-items:center;justify-content:space-between">
           <div style="font-size:11px;color:var(--text2)" id="rev-range-label">Tap a date or select a range</div>
           <div style="display:flex;gap:6px">
+            <button onclick="revSelectPrevWeek()" style="padding:5px 10px;border-radius:8px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">Prev. week</button>
             <button onclick="revSelectWeek()" style="padding:5px 10px;border-radius:8px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">This week</button>
             <button onclick="revClearRange()" style="padding:5px 10px;border-radius:8px;border:0.5px solid var(--border);background:#f9fafb;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">Clear</button>
           </div>
@@ -3426,7 +3427,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.2.26';
+var APP_VER='1.2.27';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -5039,6 +5040,7 @@ function revPickDate(ds){
   revComputeWeek();revRenderCal();revLoadRange();
 }
 function revSelectWeek(){var t=new Date(),dow=(t.getDay()+6)%7,mon=new Date(t);mon.setDate(mon.getDate()-dow);var sun=new Date(mon);sun.setDate(sun.getDate()+6);REV_SEL_FROM=localDateStr(mon);REV_SEL_TO=localDateStr(sun);REV_CAL_MONTH=t.getMonth();REV_CAL_YEAR=t.getFullYear();REV_PICKING=0;revComputeWeek();revRenderCal();revLoadRange();}
+function revSelectPrevWeek(){var t=new Date();t.setDate(t.getDate()-7);var dow=(t.getDay()+6)%7,mon=new Date(t);mon.setDate(mon.getDate()-dow);var sun=new Date(mon);sun.setDate(sun.getDate()+6);REV_SEL_FROM=localDateStr(mon);REV_SEL_TO=localDateStr(sun);REV_CAL_MONTH=mon.getMonth();REV_CAL_YEAR=mon.getFullYear();REV_PICKING=0;revComputeWeek();revRenderCal();revLoadRange();}
 function revClearRange(){REV_SEL_FROM=null;REV_SEL_TO=null;REV_PICKING=0;revRenderCal();if(g('rev-summary'))g('rev-summary').style.display='none';if(g('rev-days'))g('rev-days').innerHTML='<div style="padding:20px;text-align:center;color:var(--text2);font-size:13px">Select a date or range</div>';}
 function revUpdateRangeLabel(){var el=g('rev-range-label');if(!el)return;if(!REV_SEL_FROM){el.textContent='Tap a date or select a range';return;}if(REV_PICKING===1){el.textContent='Now tap the end date';return;}el.textContent=REV_SEL_FROM===REV_SEL_TO?revFmtShort(REV_SEL_FROM):revFmtShort(REV_SEL_FROM)+' → '+revFmtShort(REV_SEL_TO);}
 function revFmtShort(ds){return safeNewDate(ds).toLocaleDateString('en-AU',{day:'numeric',month:'short'});}
