@@ -762,7 +762,7 @@ input[type="date"],input[type="time"]{-webkit-appearance:none;appearance:none;ma
         <div class="scard-hd" style="display:flex;align-items:center;gap:8px">
           <button onclick="PAYROLL_CAL_OFFSET--;renderPayrollCal()" style="width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:#f9fafb;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">◀</button>
           <span class="scard-title" id="payroll-cal-title" style="flex:1;text-align:center">🗓 Attendance Calendar</span>
-          <button onclick="if(PAYROLL_CAL_OFFSET<0){PAYROLL_CAL_OFFSET++;renderPayrollCal()}" id="payroll-cal-fwd" style="width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:#f9fafb;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">▶</button>
+          <button onclick="if(PAYROLL_CAL_OFFSET<2){PAYROLL_CAL_OFFSET++;renderPayrollCal()}" id="payroll-cal-fwd" style="width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:#f9fafb;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">▶</button>
         </div>
         <div id="payroll-cal" style="padding:8px 12px 12px"></div>
       </div>
@@ -3426,7 +3426,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.2.25';
+var APP_VER='1.2.26';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4411,7 +4411,8 @@ function renderPayrollCal(){
   var titleEl=g('payroll-cal-title');
   if(titleEl) titleEl.textContent='🗓 '+(isCurrentMonth?'This month':monthLabel);
   var fwdBtn=g('payroll-cal-fwd');
-  if(fwdBtn){ fwdBtn.style.color=isCurrentMonth?'var(--text3)':'var(--text)'; fwdBtn.style.background=isCurrentMonth?'#f3f4f6':'#f9fafb'; }
+  var atMax=(PAYROLL_CAL_OFFSET>=2);
+  if(fwdBtn){ fwdBtn.style.color=atMax?'var(--text3)':'var(--text)'; fwdBtn.style.background=atMax?'#f3f4f6':'#f9fafb'; }
 
   function ds(d){return yr+'-'+String(mo+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');}
   function daySt(d){
