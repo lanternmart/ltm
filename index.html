@@ -3426,7 +3426,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.2.24';
+var APP_VER='1.2.25';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -4003,6 +4003,24 @@ function togglePayrollCustom(){
   g('rpt-table-wrap').innerHTML='';
 }
 
+// Bank/Cash adjustment handler — recalculates cash when bank is edited
+var PAY_REPORT_DATA=null; // store report data for adjustments
+function payAdjustBankCash(username,bankVal,gross){
+  var bk=parseFloat(bankVal)||0;
+  if(bk<0)bk=0;if(bk>gross)bk=gross;
+  var cash=gross-bk;
+  var cashEl=g('adj-cash-'+username);if(cashEl)cashEl.textContent=fmtAUD(cash);
+  var bankInput=g('adj-bank-'+username);if(bankInput&&parseFloat(bankInput.value)!==bk)bankInput.value=bk.toFixed(2);
+  // Also update the table row
+  if(PAY_REPORT_DATA){
+    PAY_REPORT_DATA.forEach(function(r){if(r.user.username===username){r.bankPay=bk;r.cashPay=cash;}});
+    // Update totals
+    var totB=0,totC=0;PAY_REPORT_DATA.forEach(function(r){totB+=r.bankPay;totC+=r.cashPay;});
+    if(g('adj-total-bank'))g('adj-total-bank').textContent=fmtAUD(totB);
+    if(g('adj-total-cash'))g('adj-total-cash').textContent=fmtAUD(totC);
+  }
+}
+
 function renderPayrollReport(){
   var sec=g('payroll-report-section');if(!sec)return;
   if(!PAYROLL_REPORT_FROM)initPayrollDates();
@@ -4098,12 +4116,14 @@ function renderPayrollReportTable(){
       });
       var totalHrs=days.reduce(function(s,d){return s+d.hrs;},0);
       var totalGross=days.reduce(function(s,d){return s+d.gross;},0);
-      var totalSuper=0; // internal payroll: no super
+      var bankAmt=parseFloat(u.bankAmount)||0;
+      var bankPay=Math.min(bankAmt,totalGross);
+      var cashPay=totalGross-bankPay;
       var pendingCnt=ATTENDANCE.filter(function(a){
         return a.username===u.username&&a.date>=from&&a.date<=to&&
           (!a.status||a.status==='Pending'||a.status==='Requested')&&!!a.checkOut;
       }).length;
-      return {user:u,days:days,totalHrs:totalHrs,totalGross:totalGross,totalSuper:totalSuper,pendingCnt:pendingCnt};
+      return {user:u,days:days,totalHrs:totalHrs,totalGross:totalGross,bankAmt:bankAmt,bankPay:bankPay,cashPay:cashPay,pendingCnt:pendingCnt};
     }).filter(function(r){return r.days.length>0;});
 
     stopLoading();
@@ -4121,7 +4141,8 @@ function renderPayrollReportTable(){
     }
 
     var grandGross=report.reduce(function(s,r){return s+r.totalGross;},0);
-    var grandSuper=report.reduce(function(s,r){return s+r.totalSuper;},0);
+    var grandBank=report.reduce(function(s,r){return s+r.bankPay;},0);
+    var grandCash=report.reduce(function(s,r){return s+r.cashPay;},0);
     var grandPend=report.reduce(function(s,r){return s+r.pendingCnt;},0);
 
     var colW=Math.max(34,Math.min(50,Math.floor(200/cols.length)));
@@ -4148,7 +4169,8 @@ function renderPayrollReportTable(){
     });
     html+='<th style="text-align:right;padding:4px 6px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">Hrs</th>';
     html+='<th style="text-align:right;padding:4px 6px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">Gross</th>';
-    html+='<th style="text-align:right;padding:4px 6px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">Super</th>';
+    html+='<th style="text-align:right;padding:4px 6px;color:var(--text2);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">Bank</th>';
+    html+='<th style="text-align:right;padding:4px 6px;color:var(--red);font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap">Cash</th>';
     html+='</tr></thead>';
 
     // Body
@@ -4182,7 +4204,8 @@ function renderPayrollReportTable(){
       });
       html+='<td style="text-align:right;padding:6px;border-bottom:1px solid var(--border);font-weight:700;font-size:11px;white-space:nowrap">'+r.totalHrs.toFixed(1)+'h</td>';
       html+='<td style="text-align:right;padding:6px;border-bottom:1px solid var(--border);font-weight:700;color:var(--green);font-size:11px;white-space:nowrap">'+fmtAUD(r.totalGross)+'</td>';
-      html+='<td style="text-align:right;padding:6px;border-bottom:1px solid var(--border);color:var(--text3);font-size:10px;white-space:nowrap">'+(r.totalSuper>0?fmtAUD(r.totalSuper):'–')+'</td>';
+      html+='<td style="text-align:right;padding:6px;border-bottom:1px solid var(--border);font-size:11px;white-space:nowrap">'+fmtAUD(r.bankPay)+'</td>';
+      html+='<td style="text-align:right;padding:6px;border-bottom:1px solid var(--border);font-weight:700;color:var(--red);font-size:11px;white-space:nowrap">'+fmtAUD(r.cashPay)+'</td>';
       html+='</tr>';
     });
     html+='</tbody>';
@@ -4196,12 +4219,32 @@ function renderPayrollReportTable(){
     });
     html+='<td style="text-align:right;padding:8px 6px;font-weight:700;font-size:11px">'+report.reduce(function(s,r){return s+r.totalHrs;},0).toFixed(1)+'h</td>';
     html+='<td style="text-align:right;padding:8px 6px;font-weight:800;color:var(--green);font-size:13px">'+fmtAUD(grandGross)+'</td>';
-    html+='<td style="text-align:right;padding:8px 6px;color:var(--text3);font-size:10px">'+(grandSuper>0?fmtAUD(grandSuper):'–')+'</td>';
+    html+='<td style="text-align:right;padding:8px 6px;font-weight:700;font-size:11px">'+fmtAUD(grandBank)+'</td>';
+    html+='<td style="text-align:right;padding:8px 6px;font-weight:800;color:var(--red);font-size:13px">'+fmtAUD(grandCash)+'</td>';
     html+='</tr></tfoot></table></div>';
     html+='<div style="display:flex;gap:6px;font-size:9px;color:var(--text3);margin-top:6px">'+
       '<span><span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--green);margin-right:2px;vertical-align:middle"></span>Approved</span>'+
       '<span><span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--amber);margin-right:2px;vertical-align:middle"></span>Pending</span>'+
     '</div>';
+
+    // Bank/Cash adjustment section
+    html+='<div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border)">';
+    html+='<div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">💳 Bank / Cash Breakdown</div>';
+    report.forEach(function(r,ri){
+      var uid=r.user.username;
+      html+='<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);gap:8px">';
+      html+='<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+r.user.fullname+'</div>';
+      html+='<div style="font-size:10px;color:var(--text3)">Gross '+fmtAUD(r.totalGross)+'</div></div>';
+      html+='<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">';
+      html+='<div style="text-align:center"><div style="font-size:9px;color:var(--text3);font-weight:600">BANK</div><input type="text" id="adj-bank-'+uid+'" value="'+r.bankPay.toFixed(2)+'" inputmode="decimal" style="width:70px;padding:5px 4px;border-radius:7px;border:1px solid var(--border);background:#f9fafb;font-size:12px;font-weight:700;text-align:center;font-family:inherit" onchange="payAdjustBankCash(\''+uid+'\',this.value,'+r.totalGross+')"></div>';
+      html+='<div style="text-align:center"><div style="font-size:9px;color:var(--red);font-weight:600">CASH</div><div id="adj-cash-'+uid+'" style="width:70px;padding:5px 4px;font-size:12px;font-weight:700;text-align:center;color:var(--red)">'+fmtAUD(r.cashPay)+'</div></div>';
+      html+='</div></div>';
+    });
+    html+='<div style="display:flex;justify-content:space-between;padding:8px 0;font-weight:700;font-size:13px;margin-top:4px">';
+    html+='<span>Total</span>';
+    html+='<span>Bank <span id="adj-total-bank">'+fmtAUD(grandBank)+'</span> · <span style="color:var(--red)">Cash <span id="adj-total-cash">'+fmtAUD(grandCash)+'</span></span></span>';
+    html+='</div></div>';
+
     html+='</div>';
 
     // Export buttons
@@ -4235,13 +4278,18 @@ function renderPayrollReportTable(){
           '</div>'+
           '<div style="text-align:right">'+
             '<div style="font-size:16px;font-weight:800;color:#16a34a">'+fmtAUD(r.totalGross)+'</div>'+
+            '<div style="font-size:10px;color:#444;margin-top:2px">Bank '+fmtAUD(r.bankPay)+' · <span style="color:#c00">Cash '+fmtAUD(r.cashPay)+'</span></div>'+
           '</div>'+
         '</div>';
       }).join('')+
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:12px;border-top:2px solid #111">'+
-        '<div style="font-size:14px;font-weight:700;color:#111">TOTAL</div>'+
-        '<div>'+
+      '<div style="margin-top:12px;padding-top:12px;border-top:2px solid #111">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center">'+
+          '<div style="font-size:14px;font-weight:700;color:#111">TOTAL</div>'+
           '<div style="font-size:20px;font-weight:800;color:#16a34a">'+fmtAUD(grandGross)+'</div>'+
+        '</div>'+
+        '<div style="display:flex;justify-content:space-between;font-size:12px;color:#444;margin-top:4px">'+
+          '<span>Bank: '+fmtAUD(grandBank)+'</span>'+
+          '<span style="color:#c00;font-weight:700">Cash: '+fmtAUD(grandCash)+'</span>'+
         '</div>'+
       '</div>'+
       '<div style="text-align:center;margin-top:14px;font-size:10px;color:#999">Generated '+new Date().toLocaleDateString('en-AU')+'</div>'+
@@ -4249,6 +4297,7 @@ function renderPayrollReportTable(){
     html+=summaryHtml;
 
     wrap.innerHTML=html;
+    PAY_REPORT_DATA=report; // store for adjustments + export
   });
 }
 
@@ -4260,7 +4309,51 @@ function loadHtml2Canvas(cb){
   document.head.appendChild(s);
 }
 
+function refreshPayrollSummaryPrint(){
+  var el=document.getElementById('payroll-summary-print');if(!el||!PAY_REPORT_DATA)return;
+  var from=PAYROLL_REPORT_FROM,to=PAYROLL_REPORT_TO;
+  var grandGross=0,grandBank=0,grandCash=0,grandPend=0;
+  PAY_REPORT_DATA.forEach(function(r){grandGross+=r.totalGross;grandBank+=r.bankPay;grandCash+=r.cashPay;grandPend+=r.pendingCnt;});
+  el.innerHTML=
+    '<div style="text-align:center;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #111">'+
+      '<div style="font-size:18px;font-weight:800;color:#111">Lantern Mart</div>'+
+      '<div style="font-size:13px;color:#666;margin-top:3px">Payroll Summary</div>'+
+      '<div style="font-size:12px;color:#666;margin-top:2px">'+
+        safeNewDate(from).toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' – '+
+        safeNewDate(to).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'})+
+      '</div>'+
+      (grandPend>0?'<div style="margin-top:6px;font-size:11px;color:#d97706;font-weight:600">⚠️ '+grandPend+' shift'+(grandPend>1?'s':'')+' pending</div>':'')+
+    '</div>'+
+    PAY_REPORT_DATA.map(function(r){
+      return '<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid #eee">'+
+        '<div>'+
+          '<div style="font-size:14px;font-weight:700;color:#111">'+r.user.fullname+'</div>'+
+          '<div style="font-size:11px;color:#666;margin-top:2px">'+
+            (parseFloat(r.user.dailyRate)>0?r.totalHrs.toFixed(1)+' hrs · $'+r.user.dailyRate+'/day':r.totalHrs.toFixed(1)+' hrs · $'+r.user.hourlyRate+'/hr')+
+          '</div>'+
+          (r.pendingCnt>0?'<div style="font-size:10px;color:#d97706">'+r.pendingCnt+' pending</div>':'')+
+        '</div>'+
+        '<div style="text-align:right">'+
+          '<div style="font-size:16px;font-weight:800;color:#16a34a">'+fmtAUD(r.totalGross)+'</div>'+
+          '<div style="font-size:10px;color:#444;margin-top:2px">Bank '+fmtAUD(r.bankPay)+' · <span style="color:#c00">Cash '+fmtAUD(r.cashPay)+'</span></div>'+
+        '</div>'+
+      '</div>';
+    }).join('')+
+    '<div style="margin-top:12px;padding-top:12px;border-top:2px solid #111">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center">'+
+        '<div style="font-size:14px;font-weight:700;color:#111">TOTAL</div>'+
+        '<div style="font-size:20px;font-weight:800;color:#16a34a">'+fmtAUD(grandGross)+'</div>'+
+      '</div>'+
+      '<div style="display:flex;justify-content:space-between;font-size:12px;color:#444;margin-top:4px">'+
+        '<span>Bank: '+fmtAUD(grandBank)+'</span>'+
+        '<span style="color:#c00;font-weight:700">Cash: '+fmtAUD(grandCash)+'</span>'+
+      '</div>'+
+    '</div>'+
+    '<div style="text-align:center;margin-top:14px;font-size:10px;color:#999">Generated '+new Date().toLocaleDateString('en-AU')+'</div>';
+}
+
 async function exportPayrollImg(){
+  refreshPayrollSummaryPrint();
   var el=document.getElementById('payroll-summary-print');if(!el)return;
   el.style.display='block';
   loadHtml2Canvas(function(){
@@ -4285,6 +4378,7 @@ async function exportPayrollImg(){
 }
 
 async function exportPayrollPDF(){
+  refreshPayrollSummaryPrint();
   var el=document.getElementById('payroll-summary-print');if(!el)return;
   el.style.display='block';
   loadHtml2Canvas(function(){
