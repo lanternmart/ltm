@@ -233,6 +233,22 @@ input[type="date"],input[type="time"]{-webkit-appearance:none;appearance:none;ma
   .msheet{border-radius:20px;margin:auto;margin-bottom:0}
   .scroll-area{padding:20px calc((100vw - 500px)/2 + 16px) 20px}
 }
+
+/* ── Non-blocking write feedback (replaces the blocking overlay on saves) ── */
+.toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,14px);max-width:86vw;
+  padding:11px 16px;border-radius:12px;background:#111;color:#fff;font-size:13px;font-weight:600;
+  z-index:9999;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;
+  box-shadow:0 8px 24px rgba(0,0,0,.22);text-align:center}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.toast-err{background:#b91c1c}
+.toast-ok{background:#15803d}
+.save-pill{position:fixed;right:14px;bottom:18px;display:flex;align-items:center;gap:7px;
+  padding:7px 13px;border-radius:999px;background:rgba(17,17,17,.88);color:#fff;
+  font-size:11px;font-weight:700;letter-spacing:.02em;z-index:9998;
+  opacity:0;pointer-events:none;transform:translateY(8px);transition:opacity .16s,transform .16s}
+.save-pill.on{opacity:1;transform:translateY(0)}
+.save-pill::before{content:'';width:11px;height:11px;border-radius:50%;
+  border:2px solid rgba(255,255,255,.35);border-top-color:#fff;animation:sp .6s linear infinite}
 </style>
 </head>
 <body>
@@ -766,6 +782,89 @@ function api(action, params){
   });
 }
 
+// ════ WRITE LAYER ════
+// Every Apps Script call costs two HTTP round trips (/exec answers with a 302 to
+// googleusercontent.com, which the browser then follows), and Apps Script runs one
+// execution at a time per user — so N parallel writes queue up server-side instead
+// of overlapping. The rules that follow from that:
+//   1. send one request instead of N (batch),
+//   2. never re-fetch a sheet we can update in memory,
+//   3. never make the user watch a write finish.
+
+// Brief message at the bottom of the screen. Used where a blocking overlay used to be.
+function toast(msg,kind,ms){
+  var t=g('toast-el');
+  if(!t){ t=document.createElement('div'); t.id='toast-el'; document.body.appendChild(t); }
+  t.className='toast'+(kind?' toast-'+kind:'');
+  t.textContent=msg;
+  // force a reflow so re-showing an already-visible toast still animates
+  void t.offsetWidth;
+  t.classList.add('on');
+  clearTimeout(t._hide);
+  t._hide=setTimeout(function(){ t.classList.remove('on'); }, ms||2200);
+}
+
+// Small "Saving…" pill, shown while any background write is still in flight.
+var WRITE_INFLIGHT=0;
+function writeStart(){ WRITE_INFLIGHT++; syncSavePill(); }
+function writeEnd(){ WRITE_INFLIGHT=Math.max(0,WRITE_INFLIGHT-1); syncSavePill(); }
+function syncSavePill(){
+  var p=g('save-pill');
+  if(!p){
+    p=document.createElement('div'); p.id='save-pill'; p.className='save-pill';
+    p.textContent='Saving…'; document.body.appendChild(p);
+  }
+  if(WRITE_INFLIGHT>0) p.classList.add('on'); else p.classList.remove('on');
+}
+
+// Fire-and-forget write. The UI has already been updated optimistically, so this
+// only has to report failure — onFail should undo whatever the caller did locally.
+function apiWrite(action,params,onFail){
+  writeStart();
+  return api(action,params).then(function(r){
+    writeEnd();
+    if(!r||!r.ok){
+      if(onFail) onFail(r);
+      toast((r&&r.msg)||'Save failed — check your connection','err',4200);
+    }
+    return r;
+  });
+}
+
+// Approve/delete many shifts in ONE request. If the deployed Code.gs doesn't have
+// the batch action yet this silently falls back to one call per row, so the app
+// works the same before and after the backend is updated — just slower.
+function attendanceBatch(op,ids,onDone){
+  if(!ids||!ids.length){ if(onDone) onDone(true); return; }
+  var acting=(REAL_ADMIN?REAL_ADMIN.username:U.username);
+  var single=(op==='approve')?'approveAttendance':'deleteAttendance';
+  if(ids.length===1){
+    apiWrite(single,{id:ids[0],actingUser:acting}).then(function(r){ if(onDone) onDone(!!(r&&r.ok)); });
+    return;
+  }
+  writeStart();
+  api('attendanceBatch',{op:op,ids:ids.join(','),actingUser:acting}).then(function(r){
+    if(r&&r.ok){ writeEnd(); if(onDone) onDone(true); return; }
+    // No batch action on the backend — do it the slow way rather than failing.
+    Promise.all(ids.map(function(id){ return api(single,{id:id,actingUser:acting}); })).then(function(rs){
+      writeEnd();
+      var bad=rs.filter(function(x){return !(x&&x.ok);}).length;
+      if(bad) toast(bad+' of '+ids.length+' did not save','err',4200);
+      if(onDone) onDone(bad===0);
+    });
+  });
+}
+
+// Apps Script drops its warm instance after a few minutes idle, which makes the
+// first write of a session pay a multi-second cold start. A cheap ping after the
+// app has rendered moves that cost off the user's first real action.
+var BACKEND_WARMED=false;
+function warmBackend(){
+  if(BACKEND_WARMED) return;
+  BACKEND_WARMED=true;
+  setTimeout(function(){ api('ping'); }, 1200);
+}
+
 // ════ FIRST-RUN: check API connectivity ════
 function checkApiOnLoad(){
   g('api-status').textContent='Checking connection...';
@@ -944,6 +1043,7 @@ function startApp(){
   var startBtn=g('bn-'+dp.id); if(startBtn) startBtn.classList.add('active');
   g('page-title').textContent=dp.title;
   loadAll();
+  warmBackend();
 }
 function loadAll(){
   // ── Restore cached data ──
@@ -1345,7 +1445,7 @@ if(isIOS && !isStandalone && !localStorage.getItem('wr_install_dismissed')){
 
 // ════ SERVICE WORKER + ACTIVE VERSION CHECK ════
 // APP_VER must match version.json — update all three (sidebar tag, version.json, sw.js) per release
-var APP_VER='1.3.0';
+var APP_VER='1.3.1';
 var SW_REG=null;
 var UPDATE_PENDING=false;
 
@@ -1770,26 +1870,38 @@ function renderPhWeekDetail(){
   body.innerHTML=html;
 }
 
+// Check in/out optimistically: the clock reading is decided here on the device, so
+// the server has nothing to tell us that we don't already know. Show it immediately
+// and let the write settle in the background; roll back only if it is rejected.
 function doCheckIn(){
-  ov('Checking in...');
   var nowDate=localToday();
   var nowTime=roundTime15(new Date().toTimeString().slice(0,5));
-  api('checkIn',{username:U.username,date:nowDate,time:nowTime}).then(function(r){
-    hov();
-    if(r.ok){ATTENDANCE.push({id:r.id,username:U.username,date:r.date||nowDate,checkIn:r.checkIn||nowTime,checkOut:'',status:'Pending'});renderStaffDash();}
-    else alert(r.msg);
+  var tmpId='local_'+Date.now();
+  ATTENDANCE.push({id:tmpId,username:U.username,date:nowDate,checkIn:nowTime,checkOut:'',status:'Pending'});
+  renderStaffDash();
+  toast('Checked in '+nowTime,'ok');
+  apiWrite('checkIn',{username:U.username,date:nowDate,time:nowTime},function(){
+    ATTENDANCE=ATTENDANCE.filter(function(a){return a.id!==tmpId;});
+    renderStaffDash();
+  }).then(function(r){
+    // Swap the placeholder id for the real row id so check-out targets the right row.
+    if(r&&r.ok&&r.id){
+      ATTENDANCE=ATTENDANCE.map(function(a){
+        return a.id===tmpId?Object.assign({},a,{id:r.id,date:r.date||nowDate,checkIn:r.checkIn||nowTime}):a;
+      });
+      renderStaffDash();
+    }
   });
 }
 function doCheckOut(){
-  ov('Checking out...');
   var nowDate=localToday();
   var nowTime=roundTime15(new Date().toTimeString().slice(0,5));
-  api('checkOut',{username:U.username,date:nowDate,time:nowTime}).then(function(r){
-    hov();
-    if(r.ok){
-      ATTENDANCE=ATTENDANCE.map(function(a){return(a.username===U.username&&a.date===nowDate&&!a.checkOut)?Object.assign({},a,{checkOut:r.checkOut||nowTime}):a;});
-      renderStaffDash();
-    } else alert(r.msg);
+  var before=ATTENDANCE;
+  ATTENDANCE=ATTENDANCE.map(function(a){return(a.username===U.username&&a.date===nowDate&&!a.checkOut)?Object.assign({},a,{checkOut:nowTime}):a;});
+  renderStaffDash();
+  toast('Checked out '+nowTime,'ok');
+  apiWrite('checkOut',{username:U.username,date:nowDate,time:nowTime},function(){
+    ATTENDANCE=before; renderStaffDash();
   });
 }
 function toggleRequestForm(){
@@ -1799,15 +1911,16 @@ function toggleRequestForm(){
 function submitRequest(){
   var date=g('req-date').value,ci=g('req-in').value,co=g('req-out').value,note=g('req-note').value;
   if(!date||!ci){alert('Please enter date and arrival time');return;}
-  ov('Submitting...');
-  api('requestAttendance',{username:U.username,date:date,checkIn:ci,checkOut:co,note:note}).then(function(r){
-    hov();
-    if(r.ok){
-      ATTENDANCE.push({id:'req_'+Date.now(),username:U.username,date:date,checkIn:ci,checkOut:co,status:'Requested',note:note});
-      toggleRequestForm();
-      renderStaffDash();
-      alert('✅ Submitted — pending admin approval');
-    } else alert(r.msg);
+  var tmpId='req_'+Date.now();
+  var before=ATTENDANCE;
+  ATTENDANCE=ATTENDANCE.concat([{id:tmpId,username:U.username,date:date,checkIn:ci,checkOut:co,status:'Requested',note:note}]);
+  toggleRequestForm();
+  renderStaffDash();
+  toast('Submitted — pending admin approval','ok',3000);
+  apiWrite('requestAttendance',{username:U.username,date:date,checkIn:ci,checkOut:co,note:note},function(){
+    ATTENDANCE=before; renderStaffDash();
+  }).then(function(r){
+    if(r&&r.ok&&r.id) ATTENDANCE=ATTENDANCE.map(function(a){return a.id===tmpId?Object.assign({},a,{id:r.id}):a;});
   });
 }
 
@@ -2552,55 +2665,83 @@ function saveAddShift(){
     ci=g('as-in').value; co=g('as-out').value;
     if(!ci){alert('Please fill check in time');return;}
   }
-  ov('Adding shift...');
   // Determine rateMode to save: only save override if different from user default
   var u2=ALL_USERS_CACHE.find(function(x){return x.username===username;})||{};
   var userDef=parseFloat(u2.dailyRate||0)>0?'daily':'hourly';
   var savRM=AS_RATE_MODE!==userDef?AS_RATE_MODE:'';
-  api('requestAttendance',{username:username,date:PAYROLL_SEL_DATE,checkIn:ci,checkOut:co,note:note,rateMode:savRM}).then(function(r){
-    if(!r.ok){hov();alert(r.msg);return;}
-    api('approveAttendance',{id:r.id||('ATT_REQ_'+Date.now()),actingUser:(REAL_ADMIN?REAL_ADMIN.username:U.username)}).then(function(r2){
-      hov();
-      var hrs=AS_RATE_MODE==='daily'?0:calcHrsStr(ci,co);
-      var newRec={id:'local_'+Date.now(),username:username,date:PAYROLL_SEL_DATE,checkIn:ci,checkOut:co,status:'Approved',approvedBy:U.username,note:note,hoursWorked:hrs};
-      ATTENDANCE.push(newRec);
-      cm('m-detail');
-      reloadAttendance();
+  var acting=(REAL_ADMIN?REAL_ADMIN.username:U.username);
+
+  // Show the shift straight away, close the sheet, then write in the background.
+  var tmpId='local_'+Date.now();
+  var hrs=AS_RATE_MODE==='daily'?0:calcHrsStr(ci,co);
+  var before=ATTENDANCE;
+  ATTENDANCE=ATTENDANCE.concat([{id:tmpId,username:username,date:PAYROLL_SEL_DATE,checkIn:ci,checkOut:co,status:'Approved',approvedBy:acting,note:note,hoursWorked:hrs}]);
+  cm('m-detail');
+  renderPayrollCal(); renderPayroll();
+
+  function undo(r){ ATTENDANCE=before; renderPayrollCal(); renderPayroll(); toast((r&&r.msg)||'Could not add shift','err',4200); }
+
+  // addShiftApproved writes the row already approved — one request instead of the
+  // request-then-approve pair. Falls back to the two-step flow on older backends.
+  writeStart();
+  api('addShiftApproved',{username:username,date:PAYROLL_SEL_DATE,checkIn:ci,checkOut:co,note:note,rateMode:savRM,actingUser:acting}).then(function(r){
+    if(r&&r.ok){
+      writeEnd();
+      if(r.id) ATTENDANCE=ATTENDANCE.map(function(a){return a.id===tmpId?Object.assign({},a,{id:r.id}):a;});
+      toast('Shift added','ok');
+      return;
+    }
+    api('requestAttendance',{username:username,date:PAYROLL_SEL_DATE,checkIn:ci,checkOut:co,note:note,rateMode:savRM}).then(function(r1){
+      if(!r1||!r1.ok){ writeEnd(); undo(r1); return; }
+      api('approveAttendance',{id:r1.id||('ATT_REQ_'+Date.now()),actingUser:acting}).then(function(r2){
+        writeEnd();
+        if(!r2||!r2.ok){ undo(r2); return; }
+        if(r1.id) ATTENDANCE=ATTENDANCE.map(function(a){return a.id===tmpId?Object.assign({},a,{id:r1.id}):a;});
+        toast('Shift added','ok');
+      });
     });
   });
 }
 
 function doApproveAttendance(id){
-  ov('Approving...');
-  api('approveAttendance',{id:id,actingUser:(REAL_ADMIN?REAL_ADMIN.username:U.username)}).then(function(r){
-    hov();
-    if(r.ok){
-      ATTENDANCE=ATTENDANCE.map(function(a){return a.id===id?Object.assign({},a,{status:'Approved',approvedBy:(REAL_ADMIN?REAL_ADMIN.username:U.username)}):a;});
-      reloadAttendance();
-    } else alert(r.msg);
+  var before=ATTENDANCE;
+  markApprovedLocal([id]);
+  renderPayrollCal(); renderPayroll(); renderStaffDash();
+  apiWrite('approveAttendance',{id:id,actingUser:(REAL_ADMIN?REAL_ADMIN.username:U.username)},function(){
+    ATTENDANCE=before; renderPayrollCal(); renderPayroll(); renderStaffDash();
   });
 }
 
 function declineAttendance(id){
   if(!confirm('Decline this shift request?')) return;
-  ov('Declining...');
-  api('deleteAttendance',{id:id,actingUser:(REAL_ADMIN?REAL_ADMIN.username:U.username)}).then(function(r){
-    hov();
-    if(r.ok){
-      ATTENDANCE=ATTENDANCE.filter(function(a){return a.id!==id;});
-      reloadAttendance();
-    } else alert(r.msg);
+  var before=ATTENDANCE;
+  ATTENDANCE=ATTENDANCE.filter(function(a){return a.id!==id;});
+  renderPayrollCal(); renderPayroll(); renderStaffDash();
+  apiWrite('deleteAttendance',{id:id,actingUser:(REAL_ADMIN?REAL_ADMIN.username:U.username)},function(){
+    ATTENDANCE=before; renderPayrollCal(); renderPayroll(); renderStaffDash();
+  });
+}
+
+// Mark shifts Approved in memory and re-render. The server call runs in the
+// background — we already know the result, so there is nothing to wait for.
+function markApprovedLocal(ids){
+  var acting=(REAL_ADMIN?REAL_ADMIN.username:U.username);
+  var set={}; ids.forEach(function(i){set[i]=true;});
+  ATTENDANCE=ATTENDANCE.map(function(a){
+    return set[a.id]?Object.assign({},a,{status:'Approved',approvedBy:acting}):a;
   });
 }
 
 function approveAllDay(){
   var pending=ATTENDANCE.filter(function(a){return a.date===PAYROLL_SEL_DATE&&(!a.status||a.status==='Pending'||a.status==='Requested')&&!!a.checkOut;});
   if(!pending.length)return;
-  ov('Approving all...');
-  var promises=pending.map(function(a){return api('approveAttendance',{id:a.id,actingUser:(REAL_ADMIN?REAL_ADMIN.username:U.username)});});
-  Promise.all(promises).then(function(){
-    hov();
-    reloadAttendance();
+  var ids=pending.map(function(a){return a.id;});
+  var before=ATTENDANCE;
+  markApprovedLocal(ids);
+  renderPayrollCal(); renderPayroll();
+  attendanceBatch('approve',ids,function(ok){
+    if(!ok){ ATTENDANCE=before; renderPayrollCal(); renderPayroll(); }
+    else toast('Approved '+ids.length+' shift'+(ids.length>1?'s':''),'ok');
   });
 }
 
@@ -2609,11 +2750,13 @@ function approveAllPending(){
   var pending=ATTENDANCE.filter(function(a){return (!a.status||a.status==='Pending'||a.status==='Requested')&&!!a.checkOut;});
   if(!pending.length)return;
   if(!confirm('Approve all '+pending.length+' pending shift'+(pending.length>1?'s':'')+' ?')) return;
-  ov('Approving '+pending.length+' shifts...');
-  var promises=pending.map(function(a){return api('approveAttendance',{id:a.id,actingUser:(REAL_ADMIN?REAL_ADMIN.username:U.username)});});
-  Promise.all(promises).then(function(){
-    hov();
-    reloadAttendance();
+  var ids=pending.map(function(a){return a.id;});
+  var before=ATTENDANCE;
+  markApprovedLocal(ids);
+  renderPayrollCal(); renderPayroll(); renderStaffDash();
+  attendanceBatch('approve',ids,function(ok){
+    if(!ok){ ATTENDANCE=before; renderPayrollCal(); renderPayroll(); renderStaffDash(); }
+    else toast('Approved '+ids.length+' shift'+(ids.length>1?'s':''),'ok');
   });
 }
 
@@ -2649,11 +2792,13 @@ function updateBulkBar(){
 function approveSelected(){
   var ids=Object.keys(PAYROLL_SELECTED);
   if(!ids.length)return;
-  ov('Approving '+ids.length+'...');
-  var promises=ids.map(function(id){return api('approveAttendance',{id:id,actingUser:(REAL_ADMIN?REAL_ADMIN.username:U.username)});});
-  Promise.all(promises).then(function(){
-    hov();PAYROLL_SELECTED={};PAYROLL_SELECT_MODE=false;
-    reloadAttendance();
+  var before=ATTENDANCE;
+  markApprovedLocal(ids);
+  PAYROLL_SELECTED={};PAYROLL_SELECT_MODE=false;
+  renderPayrollCal(); renderPayroll();
+  attendanceBatch('approve',ids,function(ok){
+    if(!ok){ ATTENDANCE=before; renderPayrollCal(); renderPayroll(); }
+    else toast('Approved '+ids.length+' shift'+(ids.length>1?'s':''),'ok');
   });
 }
 
@@ -2661,13 +2806,14 @@ function deleteSelected(){
   var ids=Object.keys(PAYROLL_SELECTED);
   if(!ids.length)return;
   if(!confirm('Delete '+ids.length+' shift'+(ids.length>1?'s':'')+' ?')) return;
-  ov('Deleting '+ids.length+'...');
-  var promises=ids.map(function(id){return api('deleteAttendance',{id:id,actingUser:(REAL_ADMIN?REAL_ADMIN.username:U.username)});});
-  Promise.all(promises).then(function(){
-    hov();
-    ATTENDANCE=ATTENDANCE.filter(function(a){return !PAYROLL_SELECTED[a.id];});
-    PAYROLL_SELECTED={};PAYROLL_SELECT_MODE=false;
-    reloadAttendance();
+  var before=ATTENDANCE;
+  var set={}; ids.forEach(function(i){set[i]=true;});
+  ATTENDANCE=ATTENDANCE.filter(function(a){return !set[a.id];});
+  PAYROLL_SELECTED={};PAYROLL_SELECT_MODE=false;
+  renderPayrollCal(); renderPayroll();
+  attendanceBatch('delete',ids,function(ok){
+    if(!ok){ ATTENDANCE=before; renderPayrollCal(); renderPayroll(); }
+    else toast('Deleted '+ids.length+' shift'+(ids.length>1?'s':''),'ok');
   });
 }
 
@@ -2758,39 +2904,23 @@ function saveEditAttendance(id){
   var u=ALL_USERS_CACHE.find(function(x){return x.username===rec.username;})||{};
   var userDefaultMode=parseFloat(u.dailyRate||0)>0?'daily':'hourly';
   var rateMode=EA_RATE_MODE!==userDefaultMode?EA_RATE_MODE:'';
-  ov('Saving...');
-  api('modifyAttendance',{id:id,checkIn:ci,checkOut:co,note:note,actingUser:(REAL_ADMIN?REAL_ADMIN.username:U.username),rateMode:rateMode}).then(function(r){
-    hov();
-    if(r.ok){
-      ATTENDANCE=ATTENDANCE.map(function(a){return a.id===id?Object.assign({},a,{checkIn:ci,checkOut:co,note:note,status:'Modified',rateMode:rateMode}):a;});
-      cm('m-detail');
-      reloadAttendance();
-    } else alert(r.msg);
-  });
-}
-
-// Reload attendance from server and re-render payroll
-function reloadAttendance(cb){
-  api('getAttendance',{username:''}).then(function(r){
-    if(r.ok&&r.data){
-      ATTENDANCE=r.data.map(function(a){return Object.assign({},a,{date:safeDate(a.date)});});
-    }
-    renderPayrollCal();
-    renderPayroll();
-    if(cb) cb();
+  var before=ATTENDANCE;
+  ATTENDANCE=ATTENDANCE.map(function(a){return a.id===id?Object.assign({},a,{checkIn:ci,checkOut:co,note:note,status:'Modified',rateMode:rateMode}):a;});
+  cm('m-detail');
+  renderPayrollCal(); renderPayroll();
+  apiWrite('modifyAttendance',{id:id,checkIn:ci,checkOut:co,note:note,actingUser:(REAL_ADMIN?REAL_ADMIN.username:U.username),rateMode:rateMode},function(){
+    ATTENDANCE=before; renderPayrollCal(); renderPayroll();
   });
 }
 
 function deleteAttendance(id){
   if(!confirm('Delete this shift permanently?')) return;
-  ov('Deleting...');
-  api('deleteAttendance',{id:id,actingUser:(REAL_ADMIN?REAL_ADMIN.username:U.username)}).then(function(r){
-    hov();
-    if(r.ok){
-      ATTENDANCE=ATTENDANCE.filter(function(a){return a.id!==id;});
-      cm('m-detail');
-      reloadAttendance();
-    } else alert(r.msg);
+  var before=ATTENDANCE;
+  ATTENDANCE=ATTENDANCE.filter(function(a){return a.id!==id;});
+  cm('m-detail');
+  renderPayrollCal(); renderPayroll();
+  apiWrite('deleteAttendance',{id:id,actingUser:(REAL_ADMIN?REAL_ADMIN.username:U.username)},function(){
+    ATTENDANCE=before; renderPayrollCal(); renderPayroll();
   });
 }
 
@@ -2967,7 +3097,7 @@ function revFmtShort(ds){return safeNewDate(ds).toLocaleDateString('en-AU',{day:
 // Revenue data — synced to Google Sheets, cached locally for speed
 var REV_CACHE={days:{},exp:null,vege:null,bal:{}};
 function revGetDay(ds){return REV_CACHE.days[ds]||null;}
-function revSetDay(ds,card,cashLS,cashActual){REV_CACHE.days[ds]={card:card||0,cashLS:cashLS||0,cashActual:cashActual||0};api('setRevenueDay',{date:ds,card:card||0,cashLS:cashLS||0,cashActual:cashActual||0});}
+function revSetDay(ds,card,cashLS,cashActual){REV_CACHE.days[ds]={card:card||0,cashLS:cashLS||0,cashActual:cashActual||0};revQueueDay(ds,card||0,cashLS||0,cashActual||0);}
 function revGetExp(){return REV_CACHE.exp||[];}
 function revSetExp(a){REV_CACHE.exp=a;}
 function revGetVege(){return REV_CACHE.vege||[];}
@@ -3087,17 +3217,45 @@ function revEditDay(ds,idx){var el=g('rev-edit-'+idx);if(el)el.style.display=el.
 // Auto-save: track which day is being edited, save on change/blur/tab-switch
 var REV_EDIT_PENDING=null;
 function revMarkDirty(ds,idx){REV_EDIT_PENDING={ds:ds,idx:idx};}
+// Day edits are buffered for a moment and sent together: filling in a whole week
+// costs one request instead of seven, which matters because Apps Script runs them
+// one at a time anyway.
+var REV_WRITE_BUF={}, REV_WRITE_TIMER=null;
+function revQueueDay(ds,card,cashLS,cashActual){
+  REV_WRITE_BUF[ds]={date:ds,card:card,cashLS:cashLS,cashActual:cashActual};
+  if(REV_WRITE_TIMER) clearTimeout(REV_WRITE_TIMER);
+  REV_WRITE_TIMER=setTimeout(revFlushWrites,500);
+}
+function revFlushWrites(){
+  if(REV_WRITE_TIMER){ clearTimeout(REV_WRITE_TIMER); REV_WRITE_TIMER=null; }
+  var keys=Object.keys(REV_WRITE_BUF);
+  if(!keys.length) return;
+  var rows=keys.map(function(k){return REV_WRITE_BUF[k];});
+  REV_WRITE_BUF={};
+  if(rows.length===1){ apiWrite('setRevenueDay',rows[0]); return; }
+  writeStart();
+  api('setRevenueDaysBatch',{rows:JSON.stringify(rows)}).then(function(r){
+    if(r&&r.ok){ writeEnd(); return; }
+    // Older backend without the batch action — send them individually.
+    Promise.all(rows.map(function(x){return api('setRevenueDay',x);})).then(function(rs){
+      writeEnd();
+      if(rs.filter(function(x){return !(x&&x.ok);}).length) toast('Some days did not save','err',4200);
+    });
+  });
+}
+
 function revFlushPending(){
-  if(!REV_EDIT_PENDING)return;
+  if(!REV_EDIT_PENDING){ revFlushWrites(); return; }
   var p=REV_EDIT_PENDING;REV_EDIT_PENDING=null;
   var a=g('rev-a-'+p.idx),b=g('rev-b-'+p.idx),c=g('rev-c-'+p.idx);
-  if(!a||!b||!c)return;
+  if(!a||!b||!c){ revFlushWrites(); return; }
   var card=parseFloat(a.value)||0,cashLS=parseFloat(b.value)||0,cashActual=parseFloat(c.value)||0;
   var old=revGetDay(p.ds);
-  if(old&&old.card===card&&old.cashLS===cashLS&&old.cashActual===cashActual)return; // no change
+  if(old&&old.card===card&&old.cashLS===cashLS&&old.cashActual===cashActual){ revFlushWrites(); return; } // no change
   REV_CACHE.days[p.ds]={card:card,cashLS:cashLS,cashActual:cashActual};
   REV_LAST_SAVE=Date.now();
-  api('setRevenueDay',{date:p.ds,card:card,cashLS:cashLS,cashActual:cashActual});
+  revQueueDay(p.ds,card,cashLS,cashActual);
+  revFlushWrites();
 }
 function revSaveDay(ds,idx){
   var card=parseFloat(g('rev-a-'+idx).value)||0,cashLS=parseFloat(g('rev-b-'+idx).value)||0,cashActual=parseFloat(g('rev-c-'+idx).value)||0;
@@ -3105,7 +3263,7 @@ function revSaveDay(ds,idx){
   REV_LAST_SAVE=Date.now();
   g('rev-edit-'+idx).style.display='none';
   revRenderCal();revRenderUI();
-  api('setRevenueDay',{date:ds,card:card,cashLS:cashLS,cashActual:cashActual});
+  revQueueDay(ds,card,cashLS,cashActual);
 }
 function revFmt(n){return '$'+(Number(n)||0).toFixed(2);}
 
@@ -3634,6 +3792,9 @@ window.addEventListener('load', function(){
 setInterval(checkVersionForce, 60000);
 document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible') checkVersionForce(); else if(typeof revFlushPending==='function') revFlushPending(); });
 window.addEventListener('focus', checkVersionForce);
+// Buffered revenue writes must not die with the page — flush on any exit path.
+window.addEventListener('pagehide', function(){ if(typeof revFlushWrites==='function') revFlushWrites(); });
+window.addEventListener('beforeunload', function(){ if(typeof revFlushWrites==='function') revFlushWrites(); });
 
 </script>
 </body>
